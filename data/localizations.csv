@@ -1,8 +1,70 @@
 key,en,ru
 TID_PLAY,Play,Играть
 TID_SETTINGS,Settings,Настройки
-TID_CREDITS,Credits,Авторы
-TID_QUIT,Quit,Выйти
-TID_CONNECT,Connect,Присоединиться
-TID_HOST,Host,Хост
+TID_CREDITS,Credits,Об игре
+TID_QUIT,Quit,Выход
 TID_BACK,Back,Назад
+TID_CONNECT,Connect,Подключиться
+TID_HOST,Host,Создать игру
+TID_HOST_LOCAL,Local Host,Локальный хост
+TID_HOST_STEAM,Steam Host,Steam хост
+TID_JOIN,Join,Присоединиться
+TID_GAME_TITLE,Frontier: Salvage,Frontier: Salvage
+TID_PLAYER_NAME,Player Name,Имя игрока
+TID_PORT,Port,Порт
+TID_SERVER_ADDRESS,Server Address,Адрес сервера
+TID_SERVER_ID,Server ID,ID сервера
+TID_CONNECT_BY_ID,Connect by Server ID,Подключение по ID
+TID_ENTER_SERVER_ID,Enter Server ID...,Введите ID сервера...
+TID_FULLSCREEN,Fullscreen,Полноэкранный режим
+TID_MUSIC_VOLUME,Music Volume,Громкость музыки
+TID_SFX_VOLUME,SFX Volume,Громкость звуков
+TID_LANGUAGE,Language,Язык
+TID_SAVE,Save Game,Сохранить игру
+TID_LOAD,Load Game,Загрузить игру
+TID_DELETE,Delete,Удалить
+TID_CANCEL,Cancel,Отмена
+TID_REFRESH,Refresh,Обновить
+TID_SAVE_NAME,Save Name,Имя сохранения
+TID_SAVES_LIST,Saves List,Список сохранений
+TID_ENTER_SAVE_NAME,Enter save name...,Введите имя сохранения...
+TID_NO_SAVES,No saves found,Нет сохранений
+TID_SAVE_SUCCESS,Save '{name}' created!,Сохранение '{name}' создано!
+TID_SAVE_ERROR,Save error!,Ошибка сохранения!
+TID_LOAD_SUCCESS,Save '{name}' loaded!,Сохранение '{name}' загружено!
+TID_LOAD_ERROR,Load error!,Ошибка загрузки!
+TID_DELETE_SUCCESS,Save '{name}' deleted!,Сохранение '{name}' удалено!
+TID_DELETE_ERROR,Delete error!,Ошибка удаления!
+TID_SAVE_EXISTS,Save '{name}' already exists!,Сохранение '{name}' уже существует!
+TID_ENTER_NAME,Enter save name!,Введите имя сохранения!
+TID_CONNECTING,Connecting...,Подключение...
+TID_CONNECTED,Connected!,Подключено!
+TID_CONNECTION_ERROR,Connection error!,Ошибка подключения!
+TID_WAVE,Wave,Волна
+TID_AGGRESSION,Aggression,Агрессия
+TID_MODE_SOLO,Solo,Одиночный
+TID_MODE_DUO,Duo,Дуэт
+TID_MODE_TRIO,Trio,Трио
+TID_MODE_QUAD,Quad,Квадро
+TID_INVENTORY,Inventory,Инвентарь
+TID_CONTROLS,Controls,Управление
+TID_MOVE,WASD - move,WASD - движение
+TID_MINE,SPACE - mine resources,SPACE - добыча
+TID_BUILD,B - build turret,B - построить турель
+TID_SAVE_MENU,F5 - save menu,F5 - меню сохранения
+TID_LOAD_MENU,F9 - load menu,F9 - меню загрузки
+TID_QUIT_GAME,ESC - quit,ESC - выход
+TID_ROLE_ENGINEER,Engineer,Инженер
+TID_ROLE_MECHANIC,Mechanic,Механик
+TID_ROLE_DEFENDER,Defender,Защитник
+TID_ROLE_SWITCH,TAB - switch role,TAB - смена роли
+TID_RESOURCES,Resources,Ресурсы
+TID_STEAM_NOT_AVAILABLE,Steam not available!,Steam недоступен!
+TID_STEAM_LOBBY_CREATED,Steam lobby created!,Steam лобби создано!
+TID_STEAM_LOBBY_ERROR,Steam lobby error!,Ошибка Steam лобби!
+TID_STEAM_LOBBY_ID,Lobby ID:,ID лобби:
+TID_HOST_TYPE,Host Type,Тип хоста
+TID_LOCAL,Local,Локальный
+TID_STEAM,Steam,Steam
+TID_COPY_ID,Copy ID,Копировать ID
+TID_PAUSE,PAUSE,ПАУЗА
