@@ -204,7 +204,7 @@ class App:
         ],
         }
 
-        self.current_scene = self.change_scene("main_menu")
+        self.change_scene("main_menu")
         
     def _set_language(self, lang):
         self.loc_mn.set_language(lang)
@@ -358,9 +358,6 @@ class App:
             for event in events:
                 if event.type == pygame.QUIT:
                     running = False
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_RETURN and pygame.key.get_mods() & pygame.KMOD_ALT:
-                        self.toggle_fullscreen(not self.fullscreen)
             
             if self.steam_lobby_manager and self.use_steam:
                 try:
@@ -368,14 +365,12 @@ class App:
                 except:
                     pass
             
-            if self.current_scene == "game" and self.game_running:
+            if self.current_scene == "game" and self.game_running:                    
+                self._update_game(events)
+                self._draw_game()
                 if self.save_menu.active:
                     self.save_menu.update(events)
-                    self._draw_game()
                     self.save_menu.draw(self.screen)
-                else:
-                    self._update_game(events)
-                    self._draw_game()
             else:
                 self._update_menu(events)
                 self._draw_menu()
@@ -479,14 +474,9 @@ class App:
 
     def _draw_menu(self):
         self.main_surface.fill("#1a1a2e")
-        
-        title_font = pygame.font.Font(None, 72)
-        title = title_font.render(self.loc_mn._g("TID_GAME_TITLE"), True, (255, 215, 0))
-        self.main_surface.blit(title, title.get_rect(center=(220, 30)))
-        
-        subtitle_font = pygame.font.Font(None, 30)
-        subtitle = subtitle_font.render("v0.2.0 - Steam Edition", True, (200, 200, 200))
-        self.main_surface.blit(subtitle, subtitle.get_rect(center=(600, 30)))
+
+        if self.current_scene == "main_menu": 
+            self.main_surface.blit(self.asset_loader.assets.get("textures\\logo.png"),(10,600))
         
         if self.show_server_id and self.server_id_display:
             server_font = pygame.font.Font(None, 28)
