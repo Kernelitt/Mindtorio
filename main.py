@@ -65,8 +65,8 @@ class App:
         self.framework = AdvancedFW()
         
         # Настройки экрана
-        self.screen_resolution = (int(self.framework.get_config("resolution_width") or BASE_RESOLUTION[0]),
-                                int(self.framework.get_config("resolution_height") or BASE_RESOLUTION[1]))
+        self.screen_resolution = (int(self.framework.get_config("resolution_width",BASE_RESOLUTION[0])),
+                                int(self.framework.get_config("resolution_height",BASE_RESOLUTION[1])))
         self.fullscreen = self.framework.get_config("fullscreen") == "True"
         self.screen = pygame.display.set_mode(self.screen_resolution)
         # Создаём окно
@@ -290,8 +290,8 @@ class App:
         if self.fullscreen:
             self.screen_resolution = pygame.display.get_desktop_sizes()[0]
         else:
-            self.screen_resolution = (int(self.framework.get_config("resolution_width") or BASE_RESOLUTION[0]),
-                        int(self.framework.get_config("resolution_height") or BASE_RESOLUTION[1]))
+            self.screen_resolution = (int(self.framework.get_config("resolution_width",BASE_RESOLUTION[1])),
+                        int(self.framework.get_config("resolution_height",BASE_RESOLUTION[1])))
             
         pygame.display.set_mode(self.screen_resolution)
         if self.fullscreen: pygame.display.toggle_fullscreen()
