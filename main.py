@@ -85,8 +85,7 @@ class App:
         
         # Загрузка ассетов
         self.asset_loader = AssetLoader('data', self.screen)
-        while self.asset_loader.load_all() < 1:
-            pass
+        while self.asset_loader.load_all() < 1: pass
         
         # Аудио и локализация
         self.audio_manager = AudioManager(self.asset_loader.assets, self.framework.config)
@@ -188,7 +187,20 @@ class App:
             PygameCheckbox(30, 550, 30, self.loc_mn._g("TID_FULLSCREEN"), 
                           self.fullscreen, callback=lambda x: self.toggle_fullscreen(x)),
             PygameButton(30, 1000, 130, 50, self.loc_mn._g("TID_BACK"), None, self.font,
-                        callback=lambda: self.change_scene('main_menu'))
+                        callback=lambda: self.change_scene('main_menu')),
+            PygameLabel(120, 630, self.loc_mn._g("TID_RESOLUTION"), self.font, center=True),
+            PygameButton(30, 700, 130, 50, "1280x720", None, self.font,
+                        callback=lambda: self.change_resolution(720)),
+            PygameButton(170, 700, 130, 50, "1366x768", None, self.font,
+                        callback=lambda: self.change_resolution(768)),
+            PygameButton(310, 700, 130, 50, "1600x900", None, self.font,
+                        callback=lambda: self.change_resolution(900)),
+            PygameButton(450, 700, 130, 50, "1920x1080", None, self.font,
+                        callback=lambda: self.change_resolution(1080)),
+            PygameButton(590, 700, 130, 50, "2560x1440", None, self.font,
+                        callback=lambda: self.change_resolution(1440)),
+            PygameButton(730, 700, 130, 50, "3840x2160", None, self.font,
+                        callback=lambda: self.change_resolution(2160)),
         ],
         }
 
@@ -296,7 +308,6 @@ class App:
         pygame.display.set_mode(self.screen_resolution)
         if self.fullscreen: pygame.display.toggle_fullscreen()
 
-
     def start_game(self, connect=True, server_id=None, use_steam=False):
         if connect:
             if not self.server_host:
@@ -362,7 +373,6 @@ class App:
                     self.save_menu.update(events)
                     self._draw_game()
                     self.save_menu.draw(self.screen)
-                    pygame.display.flip()
                 else:
                     self._update_game(events)
                     self._draw_game()
@@ -472,13 +482,11 @@ class App:
         
         title_font = pygame.font.Font(None, 72)
         title = title_font.render(self.loc_mn._g("TID_GAME_TITLE"), True, (255, 215, 0))
-        title_rect = title.get_rect(center=(220, 30))
-        self.main_surface.blit(title, title_rect)
+        self.main_surface.blit(title, title.get_rect(center=(220, 30)))
         
         subtitle_font = pygame.font.Font(None, 30)
         subtitle = subtitle_font.render("v0.2.0 - Steam Edition", True, (200, 200, 200))
-        subtitle_rect = subtitle.get_rect(center=(600, 30))
-        self.main_surface.blit(subtitle, subtitle_rect)
+        self.main_surface.blit(subtitle, subtitle.get_rect(center=(600, 30)))
         
         if self.show_server_id and self.server_id_display:
             server_font = pygame.font.Font(None, 28)
@@ -527,6 +535,13 @@ class App:
         self.current_scene = new_scene
         self.current_menu_ui = self.main_ui.get(new_scene+"_ui")
 
+    def change_resolution(self,height):
+        width = round(height / 9 * 16)
+        self.framework.set_config('resolution_width', str(width))
+        self.framework.set_config('resolution_height', str(height))
+        self.screen_resolution = (width,height)
+        pygame.display.set_mode(self.screen_resolution)
+        if self.fullscreen: self.toggle_fullscreen(self.fullscreen)
 
     def Quit(self):
         if self.client:

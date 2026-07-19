@@ -20,6 +20,7 @@ TID_FULLSCREEN,Fullscreen,Полноэкранный режим
 TID_MUSIC_VOLUME,Music Volume,Громкость музыки
 TID_SFX_VOLUME,SFX Volume,Громкость звуков
 TID_LANGUAGE,Language,Язык
+TID_RESOLUTION,Screen resolution,Размер окна
 TID_SAVE,Save Game,Сохранить игру
 TID_LOAD,Load Game,Загрузить игру
 TID_DELETE,Delete,Удалить

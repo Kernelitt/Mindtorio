@@ -12,6 +12,3 @@ BASIC_CONFIG = {
     "sfx_volume": 0.7,
     "language": "en"
 }
-
-# Добавляем недостающую константу
-TID_PAUSE = "PAUSE"
