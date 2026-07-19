@@ -138,8 +138,3 @@ class World:
             return self.save_system.save(save_name)
         return False
     
-    def quick_save(self) -> bool:
-        """Быстрое сохранение"""
-        if hasattr(self, 'save_system'):
-            return self.save_system.quick_save()
-        return False

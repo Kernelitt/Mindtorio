@@ -193,22 +193,12 @@ class SaveSystem:
             return True
         return False
     
-    def quick_save(self) -> bool:
-        """Быстрое сохранение"""
-        world_state = self.world.to_dict()
-        return self.save_manager.quick_save(world_state, self._get_player_name())
-    
-    def auto_save(self) -> bool:
-        """Автосохранение"""
-        world_state = self.world.to_dict()
-        return self.save_manager.auto_save(world_state, self._get_player_name())
-    
     def update(self, dt: float):
         """Обновляет таймер автосохранения"""
         self.auto_save_timer += dt
         if self.auto_save_timer >= self.auto_save_interval:
             self.auto_save_timer = 0
-            self.auto_save()
+            self.save("idk")
     
     def _get_player_name(self) -> str:
         """Возвращает имя первого игрока"""

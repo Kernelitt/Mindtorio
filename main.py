@@ -400,7 +400,7 @@ class App:
                 match event.key:
                     case pygame.K_ESCAPE:
                         if self.client.local_server and self.client.local_server.world:
-                            self.client.local_server.world.quick_save()
+                            self.client.local_server.world.save("idk")
                         self.game_running = False
                         self.change_scene("main_menu")
                         self.client.disconnect()
@@ -478,24 +478,6 @@ class App:
         if self.current_scene == "main_menu": 
             self.main_surface.blit(self.asset_loader.assets.get("textures\\logo.png"),(10,600))
         
-        if self.show_server_id and self.server_id_display:
-            server_font = pygame.font.Font(None, 28)
-            server_text = server_font.render(self.server_id_display, True, (100, 255, 100))
-            server_rect = server_text.get_rect(center=(BASE_RESOLUTION[0]//2, 320))
-            self.main_surface.blit(server_text, server_rect)
-            
-            copy_btn = PygameButton(
-                BASE_RESOLUTION[0]//2 + 250, 305, 80, 30,
-                "COPY", None, self.font,
-                bg_color=(60, 60, 80), hover_bg_color=(100, 100, 140),
-                callback=self._copy_server_id
-            )
-            copy_btn.draw(self.main_surface)
-            self.copy_button_rect = copy_btn.rect
-            
-            if self.server_id_timer and pygame.time.get_ticks() > self.server_id_timer:
-                self.show_server_id = False
-        
         for btn in self.current_menu_ui:
             if hasattr(btn, 'draw'):
                 btn.draw(self.main_surface)
@@ -503,7 +485,7 @@ class App:
         if hasattr(self, 'error_message') and self.error_message:
             error_font = pygame.font.Font(None, 30)
             error_text = error_font.render(self.error_message, True, (255, 100, 100))
-            error_rect = error_text.get_rect(center=(BASE_RESOLUTION[0]//2, 600))
+            error_rect = error_text.get_rect(center=(1000, 1030))
             self.main_surface.blit(error_text, error_rect)
             if hasattr(self, 'error_timer') and pygame.time.get_ticks() > self.error_timer:
                 self.error_message = ""
