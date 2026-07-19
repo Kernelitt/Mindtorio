@@ -1,5 +1,5 @@
 '''
-Frontier: Salvage - Объединённый проект с Mindtorio фреймворком
+Mindtorio 
 '''
 import pygame, os, sys, time, random
 from advanced_framework import *

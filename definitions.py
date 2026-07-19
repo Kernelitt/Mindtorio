@@ -1,4 +1,4 @@
-GAME_CAPTION_TITLE = "Frontier: Salvage"
+GAME_CAPTION_TITLE = "Mindtorio"
 
 # Базовое разрешение для рендеринга (всегда рендерим в этом разрешении)
 BASE_RESOLUTION = (1920, 1080)
