@@ -68,12 +68,9 @@ class App:
         self.screen_width = int(self.framework.get_config("resolution_width") or BASE_RESOLUTION[0])
         self.screen_height = int(self.framework.get_config("resolution_height") or BASE_RESOLUTION[1])
         self.fullscreen = self.framework.get_config("fullscreen") == "True"
-        
+        self.screen = pygame.display.set_mode((self.screen_width,self.screen_height))
         # Создаём окно
-        if self.fullscreen:
-            self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), pygame.FULLSCREEN)
-        else:
-            self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
+        if self.fullscreen: pygame.display.toggle_fullscreen()
         
         # Основная поверхность для рендеринга
         self.main_surface = pygame.Surface(BASE_RESOLUTION)
@@ -93,6 +90,7 @@ class App:
         
         # Аудио и локализация
         self.audio_manager = AudioManager(self.asset_loader.assets, self.framework.config)
+        
         self.loc_mn = LocalizationManager("data/localizations.csv", self.framework.get_config("language") or "en")
         
         # Игровые компоненты
@@ -103,7 +101,6 @@ class App:
         self.game_running = False
         
         # Состояние сцены
-        self.current_scene = "main_menu"
         self.player_name = "Игрок"
         self.player_role = "engineer"
         self.server_host = None
@@ -131,14 +128,11 @@ class App:
         self.world = None
 
     def _create_ui(self):
-        font_path = self.asset_loader.get("fonts/BrianneTod.ttf")
-        if font_path:
-            self.font = font_path
-        else:
-            self.font = pygame.font.Font(None, 24)
-        
-        # Главное меню
-        self.main_menu_ui = [
+        font_path = self.asset_loader.assets.get("fonts\\BrianneTod.ttf")
+        self.font = font_path if font_path else pygame.font.SysFont("Arial", 24)
+
+        self.main_ui = {
+        "main_menu_ui": [
             PygameButton(30, 800, 220, 50, self.loc_mn._g("TID_PLAY"), None, self.font,
                         callback=lambda: self.change_scene('play_menu')),
             PygameButton(30, 860, 220, 50, self.loc_mn._g("TID_SETTINGS"), None, self.font,
@@ -147,30 +141,28 @@ class App:
                         callback=lambda: self.change_scene('credits_menu')),
             PygameButton(30, 980, 220, 50, self.loc_mn._g("TID_QUIT"), None, self.font,
                         callback=lambda: self.Quit())
-        ]
-        
-        # Меню игры
-        self.play_menu_ui = [
+        ],
+        "play_menu_ui":[
             PygameButton(30, 750, 220, 50, self.loc_mn._g("TID_HOST"), None, self.font,
-                        callback=lambda: self._show_host_type_menu()),
+                        callback=lambda: self.change_scene("host_type_menu")),
             PygameButton(260, 750, 220, 50, self.loc_mn._g("TID_CONNECT"), None, self.font,
-                        callback=lambda: self._show_connect_menu()),
+                        callback=lambda: self.change_scene("connect_menu")),
             PygameButton(30, 1000, 130, 50, self.loc_mn._g("TID_BACK"), None, self.font,
                         callback=lambda: self.change_scene('main_menu')),
-        ]
+        ],
         
         # Меню выбора типа хоста
-        self.host_type_menu_ui = [
+        "host_type_menu_ui":[
             PygameButton(30, 750, 300, 50, self.loc_mn._g("TID_HOST_LOCAL"), None, self.font,
                         callback=lambda: self._start_host("local")),
             PygameButton(340, 750, 300, 50, self.loc_mn._g("TID_HOST_STEAM"), None, self.font,
                         callback=lambda: self._start_host("steam")),
             PygameButton(30, 1000, 130, 50, self.loc_mn._g("TID_BACK"), None, self.font,
-                        callback=lambda: self._show_host_type_menu(back=True)),
-        ]
+                        callback=lambda: self.change_scene("play_menu")),
+        ],
         
         # Меню подключения
-        self.connect_menu_ui = [
+        "connect_menu_ui":[
             PygameLabel(400, 450, self.loc_mn._g("TID_CONNECT_BY_ID"), self.font, color=(200, 200, 200)),
             PygameInputField(400, 500, 500, 50, self.loc_mn._g("TID_ENTER_SERVER_ID"), self.font,
                             callback=lambda x: setattr(self, 'server_id', x)),
@@ -178,50 +170,34 @@ class App:
                         callback=lambda: self._connect_by_id()),
             PygameButton(30, 1000, 130, 50, self.loc_mn._g("TID_BACK"), None, self.font,
                         callback=lambda: self.change_scene('play_menu')),
-        ]
+        ],
         
         # Меню настроек
-        self.settings_menu_ui = [
-            PygameLabel(BASE_RESOLUTION[0]//2, 200, self.loc_mn._g("TID_MUSIC_VOLUME"), self.font, center=True),
+        "settings_menu_ui":[
+            PygameLabel(160, 200, self.loc_mn._g("TID_MUSIC_VOLUME"), self.font, center=True),
             PygameSlider(100, 240, 500, 30, 0, 100, int(self.audio_manager.music_volume * 100), 
                         callback=lambda x: self.audio_manager.set_music_volume(x/100)),
-            PygameLabel(BASE_RESOLUTION[0]//2, 320, self.loc_mn._g("TID_SFX_VOLUME"), self.font, center=True),
+            PygameLabel(160, 320, self.loc_mn._g("TID_SFX_VOLUME"), self.font, center=True),
             PygameSlider(100, 360, 500, 30, 0, 100, int(self.audio_manager.sfx_volume * 100),
                         callback=lambda x: self.audio_manager.set_sfx_volume(x/100)),
-            PygameLabel(BASE_RESOLUTION[0]//2, 440, self.loc_mn._g("TID_LANGUAGE"), self.font, center=True),
-            PygameButton(BASE_RESOLUTION[0]//2 - 100, 470, 80, 40, "EN", None, self.font,
+            PygameLabel(180, 440, self.loc_mn._g("TID_LANGUAGE"), self.font, center=True),
+            PygameButton(300, 440, 80, 40, "EN", None, self.font,
                         callback=lambda: self._set_language("en")),
-            PygameButton(BASE_RESOLUTION[0]//2 + 20, 470, 80, 40, "RU", None, self.font,
+            PygameButton(400, 440, 80, 40, "RU", None, self.font,
                         callback=lambda: self._set_language("ru")),
-            PygameCheckbox(BASE_RESOLUTION[0]//2 - 150, 550, 30, self.loc_mn._g("TID_FULLSCREEN"), 
+            PygameCheckbox(30, 550, 30, self.loc_mn._g("TID_FULLSCREEN"), 
                           self.fullscreen, callback=lambda x: self.toggle_fullscreen(x)),
             PygameButton(30, 1000, 130, 50, self.loc_mn._g("TID_BACK"), None, self.font,
                         callback=lambda: self.change_scene('main_menu'))
-        ]
-        
-        # Текущее меню
-        self.current_menu_ui = self.main_menu_ui
+        ],
+        }
 
+        self.current_scene = self.change_scene("main_menu")
+        
     def _set_language(self, lang):
         self.loc_mn.set_language(lang)
         self.framework.set_config('language', lang)
         self._create_ui()
-
-    def _show_host_type_menu(self):
-        self.current_scene = "host_type_menu"
-        self.current_menu_ui = self.host_type_menu_ui
-
-    def _show_connect_menu(self):
-        self.current_scene = "connect_menu"
-        self.current_menu_ui = self.connect_menu_ui
-
-    def _show_host_type_menu(self, back=False):
-        if back:
-            self.current_scene = "play_menu"
-            self.current_menu_ui = self.play_menu_ui
-        else:
-            self.current_scene = "host_type_menu"
-            self.current_menu_ui = self.host_type_menu_ui
 
     def _connect_by_id(self):
         if not self.server_id or len(self.server_id.strip()) < 3:
@@ -310,10 +286,7 @@ class App:
     def toggle_fullscreen(self, checked):
         self.fullscreen = checked
         self.framework.set_config('fullscreen', str(checked))
-        if checked:
-            self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), pygame.FULLSCREEN)
-        else:
-            self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
+        pygame.display.toggle_fullscreen()
 
     def start_game(self, connect=True, server_id=None, use_steam=False):
         if connect:
@@ -388,7 +361,7 @@ class App:
                 self._update_menu(events)
                 self._draw_menu()
             
-            self.clock.tick(int(self.framework.get_config("fps") or 60))
+            self.clock.tick(int(self.framework.get_config("fps", 60)))
         
         self.Quit()
 
@@ -410,43 +383,43 @@ class App:
         
         for event in events:
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    if self.client.local_server and self.client.local_server.world:
-                        self.client.local_server.world.quick_save()
-                    self.game_running = False
-                    self.current_scene = "main_menu"
-                    self.current_menu_ui = self.main_menu_ui
-                    self.client.disconnect()
-                
-                elif event.key == pygame.K_F5:
-                    self.save_menu.open("save")
-                
-                elif event.key == pygame.K_F9:
-                    self.save_menu.open("load")
-                
-                elif event.key == pygame.K_SPACE:
-                    self.client.send_mine()
-                
-                elif event.key == pygame.K_TAB:
-                    if self.client.can_switch_roles:
-                        roles = ["engineer", "mechanic", "defender"]
+                match event.key:
+                    case pygame.K_ESCAPE:
+                        if self.client.local_server and self.client.local_server.world:
+                            self.client.local_server.world.quick_save()
+                        self.game_running = False
+                        self.change_scene("main_menu")
+                        self.client.disconnect()
+                    
+                    case pygame.K_F5:
+                        self.save_menu.open("save")
+                    
+                    case pygame.K_F9:
+                        self.save_menu.open("load")
+                    
+                    case pygame.K_SPACE:
+                        self.client.send_mine()
+                    
+                    case pygame.K_TAB:
+                        if self.client.can_switch_roles:
+                            roles = ["engineer", "mechanic", "defender"]
+                            if self.client.world_state:
+                                player_data = self.client.world_state["entities"].get(self.client.player_id)
+                                if player_data:
+                                    current_role = player_data.get("role", "engineer")
+                                    next_idx = (roles.index(current_role) + 1) % len(roles)
+                                    self.client.send_switch_role(roles[next_idx])
+                    
+                    case pygame.K_b:
                         if self.client.world_state:
                             player_data = self.client.world_state["entities"].get(self.client.player_id)
                             if player_data:
-                                current_role = player_data.get("role", "engineer")
-                                next_idx = (roles.index(current_role) + 1) % len(roles)
-                                self.client.send_switch_role(roles[next_idx])
-                
-                elif event.key == pygame.K_b:
-                    if self.client.world_state:
-                        player_data = self.client.world_state["entities"].get(self.client.player_id)
-                        if player_data:
-                            self.client.send_build(
-                                "turret_mg",
-                                player_data["x"] + 50,
-                                player_data["y"],
-                                "machinegun_turret"
-                            )
+                                self.client.send_build(
+                                    "turret_mg",
+                                    player_data["x"] + 50,
+                                    player_data["y"],
+                                    "machinegun_turret"
+                                )
 
     def _draw_game(self):
         if not self.client:
@@ -490,12 +463,12 @@ class App:
         
         title_font = pygame.font.Font(None, 72)
         title = title_font.render(self.loc_mn._g("TID_GAME_TITLE"), True, (255, 215, 0))
-        title_rect = title.get_rect(center=(BASE_RESOLUTION[0]//2, 200))
+        title_rect = title.get_rect(center=(220, 30))
         self.main_surface.blit(title, title_rect)
         
         subtitle_font = pygame.font.Font(None, 30)
         subtitle = subtitle_font.render("v0.2.0 - Steam Edition", True, (200, 200, 200))
-        subtitle_rect = subtitle.get_rect(center=(BASE_RESOLUTION[0]//2, 250))
+        subtitle_rect = subtitle.get_rect(center=(600, 30))
         self.main_surface.blit(subtitle, subtitle_rect)
         
         if self.show_server_id and self.server_id_display:
@@ -543,16 +516,8 @@ class App:
 
     def change_scene(self, new_scene: str):
         self.current_scene = new_scene
-        if new_scene == "main_menu":
-            self.current_menu_ui = self.main_menu_ui
-        elif new_scene == "play_menu":
-            self.current_menu_ui = self.play_menu_ui
-        elif new_scene == "settings_menu":
-            self.current_menu_ui = self.settings_menu_ui
-        elif new_scene == "host_type_menu":
-            self.current_menu_ui = self.host_type_menu_ui
-        elif new_scene == "connect_menu":
-            self.current_menu_ui = self.connect_menu_ui
+        self.current_menu_ui = self.main_ui.get(new_scene+"_ui")
+
 
     def Quit(self):
         if self.client:
