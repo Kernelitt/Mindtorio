@@ -65,12 +65,12 @@ class App:
         self.framework = AdvancedFW()
         
         # Настройки экрана
-        self.screen_width = int(self.framework.get_config("resolution_width") or BASE_RESOLUTION[0])
-        self.screen_height = int(self.framework.get_config("resolution_height") or BASE_RESOLUTION[1])
+        self.screen_resolution = (int(self.framework.get_config("resolution_width") or BASE_RESOLUTION[0]),
+                                int(self.framework.get_config("resolution_height") or BASE_RESOLUTION[1]))
         self.fullscreen = self.framework.get_config("fullscreen") == "True"
-        self.screen = pygame.display.set_mode((self.screen_width,self.screen_height))
+        self.screen = pygame.display.set_mode(self.screen_resolution)
         # Создаём окно
-        if self.fullscreen: pygame.display.toggle_fullscreen()
+        if self.fullscreen: self.toggle_fullscreen(1)
         
         # Основная поверхность для рендеринга
         self.main_surface = pygame.Surface(BASE_RESOLUTION)
@@ -281,12 +281,21 @@ class App:
 
     def _show_error_message(self, message):
         self.error_message = message
+        self.audio_manager.play_sfx("sfx\\error.ogg")
         self.error_timer = pygame.time.get_ticks() + 3000
 
     def toggle_fullscreen(self, checked):
         self.fullscreen = checked
         self.framework.set_config('fullscreen', str(checked))
-        pygame.display.toggle_fullscreen()
+        if self.fullscreen:
+            self.screen_resolution = pygame.display.get_desktop_sizes()[0]
+        else:
+            self.screen_resolution = (int(self.framework.get_config("resolution_width") or BASE_RESOLUTION[0]),
+                        int(self.framework.get_config("resolution_height") or BASE_RESOLUTION[1]))
+            
+        pygame.display.set_mode(self.screen_resolution)
+        if self.fullscreen: pygame.display.toggle_fullscreen()
+
 
     def start_game(self, connect=True, server_id=None, use_steam=False):
         if connect:
@@ -449,8 +458,8 @@ class App:
         pygame.display.flip()
 
     def _update_menu(self, events):
-        scale_x = BASE_RESOLUTION[0] / self.screen_width
-        scale_y = BASE_RESOLUTION[1] / self.screen_height
+        scale_x = BASE_RESOLUTION[0] / self.screen_resolution[0]
+        scale_y = BASE_RESOLUTION[1] / self.screen_resolution[1]
         mouse_x, mouse_y = pygame.mouse.get_pos()
         virtual_mouse_pos = (mouse_x * scale_x, mouse_y * scale_y)
         

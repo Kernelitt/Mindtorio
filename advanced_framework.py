@@ -476,19 +476,17 @@ class PygameSlider:
         if changed and self.callback:
             self.callback(self.value)
 
-    def update(self, events, virtual_mouse_pos=None):
-        if virtual_mouse_pos is None:
-            virtual_mouse_pos = pygame.mouse.get_pos()
+    def update(self, events, virtual_mouse_pos):
         self.hovered = self.rect.collidepoint(virtual_mouse_pos)
         for event in events:
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                if self.rect.collidepoint(event.pos):
+                if self.hovered:
                     self.dragging = True
-                    self.set_value(self._value_from_mouse(event.pos[0]))
+                    self.set_value(self._value_from_mouse(virtual_mouse_pos[0]))
             elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                 self.dragging = False
             elif event.type == pygame.MOUSEMOTION and self.dragging:
-                self.set_value(self._value_from_mouse(event.pos[0]))
+                self.set_value(self._value_from_mouse(virtual_mouse_pos[0]))
 
     def draw(self, screen):
         track_y = self.rect.centery - self.rect.height // 4
@@ -526,6 +524,7 @@ class PygameCheckbox:
         self.border_width = border_width
         self.callback = callback
         self.text_offset = text_offset
+        self.clicked = False
         self.hovered = False
 
     def toggle(self):
@@ -533,14 +532,16 @@ class PygameCheckbox:
         if self.callback:
             self.callback(self.checked)
 
-    def update(self, events, virtual_mouse_pos=None):
-        if virtual_mouse_pos is None:
-            virtual_mouse_pos = pygame.mouse.get_pos()
+    def update(self, events, virtual_mouse_pos):
         self.hovered = self.box_rect.collidepoint(virtual_mouse_pos)
         for event in events:
-            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                if self.box_rect.collidepoint(event.pos):
-                    self.toggle()
+            if self.hovered:
+                if event.type == pygame.MOUSEBUTTONUP and self.clicked:
+                        self.toggle()
+                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    self.clicked = True
+                else:
+                    self.clicked = False
 
     def draw(self, screen):
         box_fill = self.box_hover_color if self.hovered else self.box_color
