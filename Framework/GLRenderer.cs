@@ -94,7 +94,7 @@ namespace Mindtorio.Framework
             }
 
             _chunkManager = new ChunkManager(
-                chunkSize: 128,
+                chunkSize: 256,
                 chunkQuality: 1024,
                 heightScale: 128f,
                 noiseSeed: 1124
@@ -193,7 +193,7 @@ namespace Mindtorio.Framework
             if (KeyboardState.IsKeyDown(Keys.Q))
                 _camera.ProcessKeyboard(CameraMovement.Down, (float)e.Time);
 
-            _chunkManager.Update(_camera.Position, renderDistance: 3);
+            _chunkManager.Update(_camera.Position, renderDistance: 5);
 
 
         }

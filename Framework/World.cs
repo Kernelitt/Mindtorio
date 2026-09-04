@@ -195,6 +195,10 @@ public class TerrainMesh : IMeshData
 
     private PerlinNoise _continentalnessNoise;
 
+    private const float GlobalMinHeight = 0f;    // Минимально возможная высота в вашем мире
+    private const float GlobalMaxHeight = 250f;  // Максимально возможная высота в вашем мире
+    private const float GlobalHeightRange = GlobalMaxHeight - GlobalMinHeight;
+
 
     private PerlinNoise _noise;
 
@@ -329,17 +333,21 @@ public class TerrainMesh : IMeshData
 
     private float GenerateHeight(float x, float z, float heightScale)
     {
-        // Базовый шум высоты
-        float erosionHeight = MathF.Pow(_erosionNoise.Fractal(x * 0.001f, z * 0.001f, 12, 0.52f) * 1.5f, 6);
-        float baseHeight = _noise.Fractal(x * 0.01f, z * 0.01f, 1, 0.42f);
-
+        // Базовый шум высоты и эрозии
+        float erosionHeight = MathF.Pow(_erosionNoise.Fractal(x * 0.0007f, z * 0.0007f, 12, 0.52f) * 1.6f, 6);
+        float baseHeight = _noise.Fractal(x * 0.003f, z * 0.003f, 1, 0.42f);
         baseHeight = Math.Clamp(baseHeight, 0f, 1f);
 
+        float landHeight = baseHeight * heightScale * erosionHeight;
 
-
-        return baseHeight * heightScale * erosionHeight;
+        return landHeight;
     }
 
+    static float Smoothstep(float edge0, float edge1, float x)
+    {
+        x = Math.Clamp((x - edge0) / (edge1 - edge0),0,1);
+        return x * x * (3.0f - 2.0f * x);
+    }
 
 
     private byte[] GenerateTextureFromBiomes()
@@ -348,54 +356,54 @@ public class TerrainMesh : IMeshData
         int height = TextureHeight;
         var pixels = new byte[width * height * 4];
 
-        // Находим мин/макс высоту
-        float minHeight = float.MaxValue;
-        float maxHeight = float.MinValue;
+        // ОПРЕДЕЛЯЕМ ЦВЕТА БИОМОВ
+        Vector3 sandColor = new Vector3(0.6f, 0.5f, 0.23f);
+        Vector3 grassColor = new Vector3(0.2f, 0.5f, 0.23f);
+        Vector3 rockColor = new Vector3(0.58f, 0.58f, 0.6f);
+        Vector3 snowColor = new Vector3(0.9f, 0.9f, 0.9f);
 
         for (int idx = 0; idx < _positions.Length; idx++)
-        {
-            float h = _positions[idx].Y;
-            if (h < minHeight) minHeight = h;
-            if (h > maxHeight) maxHeight = h;
-        }
-
-        float heightRange = maxHeight - minHeight;
-        if (heightRange < 0.001f) heightRange = 1f;
-
-        for (int idx = 0; idx < _positions.Length; idx++)
-        {
-            float normalizedHeight = (_positions[idx].Y - minHeight) / 100;
+        { 
+            float normalizedHeight = (_positions[idx].Y - GlobalMinHeight) / GlobalHeightRange;
             normalizedHeight = Math.Clamp(normalizedHeight, 0f, 1f);
 
-            // просто 1 цвет
-            Vector3 color = new Vector3(0.2f, 0.5f, 0.23f);
-            switch (normalizedHeight)
-            {
-                case < 0.05f:
-                    color = new Vector3(0.6f, 0.5f, 0.23f);
-                    break;
-                case < 0.6f:
-                    color = new Vector3(0.2f, 0.5f, 0.23f);
-                    break;
-                case < 0.9f:
-                    color = new Vector3(0.58f, 0.58f, 0.6f);
-                    break;
-                case <= 1.0f:
-                    color = new Vector3(0.9f, 0.9f, 0.9f);
-                    break;
-            }
-            
+            Vector3 color;
 
-            // Детализирующий шум
-            int x = idx % width;
-            int z = idx / width;
-            float detailNoise = _noise.Fractal(x * 2f, z * 2f, 6, 0.5f);
-            float noiseFactor = 0.7f + 0.3f * detailNoise;
+            // Расчет плавных переходов
+            if (normalizedHeight < 0.05f)
+            {
+                color = sandColor;
+            }
+            else if (normalizedHeight < 0.15f) // Песок -> Трава
+            {
+                float t = Smoothstep(0.05f, 0.15f, normalizedHeight);
+                color = Vector3.Lerp(sandColor, grassColor, t);
+            }
+            else if (normalizedHeight < 0.55f)
+            {
+                color = grassColor;
+            }
+            else if (normalizedHeight < 0.65f) // Трава -> Скалы
+            {
+                float t = Smoothstep(0.55f, 0.65f, normalizedHeight);
+                color = Vector3.Lerp(grassColor, rockColor, t);
+            }
+            else if (normalizedHeight < 0.85f)
+            {
+                color = rockColor;
+            }
+            else // Скалы -> Снег
+            {
+                float t = Smoothstep(0.85f, 0.95f, normalizedHeight);
+                color = Vector3.Lerp(rockColor, snowColor, t);
+            }
+
+
 
             int pixelIdx = idx * 4;
-            pixels[pixelIdx + 0] = (byte)(color.X * noiseFactor * 255);
-            pixels[pixelIdx + 1] = (byte)(color.Y * noiseFactor * 255);
-            pixels[pixelIdx + 2] = (byte)(color.Z * noiseFactor * 255);
+            pixels[pixelIdx + 0] = (byte)Math.Clamp(color.X * 255, 0, 255);
+            pixels[pixelIdx + 1] = (byte)Math.Clamp(color.Y * 255, 0, 255);
+            pixels[pixelIdx + 2] = (byte)Math.Clamp(color.Z * 255, 0, 255);
             pixels[pixelIdx + 3] = 255;
         }
 

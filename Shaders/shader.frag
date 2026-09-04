@@ -16,6 +16,7 @@ uniform vec3 uAmbient;
 uniform vec3 uObjectColor;
 uniform float uObjectReflectPower;
 
+
 void main()
 {
     vec3 norm = normalize(Normal);
