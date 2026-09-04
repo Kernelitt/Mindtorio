@@ -12,8 +12,7 @@
             for (int i = 0; i < values.Length; i++)
                 values[i] = i;
 
-            Random random =
-                new Random(seed);
+            Random random = new(seed);
 
             for (int i = 255; i > 0; i--)
             {
@@ -101,20 +100,13 @@
             float x,
             float z)
         {
-            switch (hash & 3)
+            return (hash & 3) switch
             {
-                case 0:
-                    return x + z;
-
-                case 1:
-                    return -x + z;
-
-                case 2:
-                    return x - z;
-
-                default:
-                    return -x - z;
-            }
+                0 => x + z,
+                1 => -x + z,
+                2 => x - z,
+                _ => -x - z,
+            };
         }
 
         private static float Fade(float value)

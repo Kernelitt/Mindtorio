@@ -1,4 +1,7 @@
 ﻿[*.cs]
 
 # CS8618: Поле, не допускающее значения NULL, должно содержать значение, отличное от NULL, при выходе из конструктора. Рассмотрите возможность добавления модификатора "required" или объявления значения, допускающего значение NULL.
-dotnet_diagnostic.CS8618.severity = suggestion
+dotnet_diagnostic.CS8618.severity = silent
+
+# IDE0160: Преобразовать в namespace с заданной областью видимости блока
+dotnet_diagnostic.IDE0160.severity = silent

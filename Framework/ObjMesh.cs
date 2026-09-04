@@ -30,7 +30,7 @@ namespace Mindtorio.Framework
                     if (line.StartsWith("#") || string.IsNullOrEmpty(line))
                         continue;
 
-                    var parts = line.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                    var parts = line.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
                     if (parts.Length == 0)
                         continue;
 
@@ -120,7 +120,7 @@ namespace Mindtorio.Framework
                 Normals[i * 3 + 2] = normals[i].Z;
             }
 
-            Indices = indicesTemp.ToArray();
+            Indices = [.. indicesTemp];
         }
     }
 }

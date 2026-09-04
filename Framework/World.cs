@@ -1,6 +1,7 @@
 ﻿using OpenTK.Mathematics;
 using OpenTK.Graphics.OpenGL4;
-using Mindtorio.Framework;
+
+namespace Mindtorio.Framework;
 
 public class Chunk : IDisposable
 {
@@ -16,28 +17,25 @@ public class Chunk : IDisposable
 
     private int _indexCount;
 
+    private readonly int _seed;
 
-    public Chunk(int chunkX, int chunkZ, int chunkSize, int chunkQuality, float heightScale)
+
+    public Chunk(int chunkX, int chunkZ, int chunkSize, int chunkQuality, float heightScale, int noiseSeed)
     {
         ChunkX = chunkX;
         ChunkZ = chunkZ;
 
+        _seed = noiseSeed;
+
 
         // Генерируем mesh для этого чанка
-        var meshData = GenerateChunkMesh(chunkX, chunkZ, chunkSize, chunkQuality, heightScale);
+        TerrainMesh meshData = new(chunkSize, chunkSize, chunkQuality, chunkQuality, heightScale, chunkX, chunkZ, _seed);
 
         // Загружаем в OpenGL
         LoadToGpu(meshData);
     }
 
-    private IMeshData GenerateChunkMesh(int chunkX, int chunkZ, int chunkSize, int chunkQuality, float heightScale)
-    {
-        // Создаём TerrainMesh для конкретного чанка
-        // Смещение в мировых координатах: chunkX * chunkSize, chunkZ * chunkSize
-        return new TerrainMesh(chunkSize, chunkSize, chunkQuality, chunkQuality, heightScale, chunkX, chunkZ);
-    }
-
-    private void LoadToGpu(IMeshData mesh)
+    private void LoadToGpu(TerrainMesh mesh)
     {
         _vao = GL.GenVertexArray();
         GL.BindVertexArray(_vao);
@@ -124,20 +122,14 @@ public class Chunk : IDisposable
     }
 }
 
-public class ChunkManager
+public class ChunkManager(int chunkSize, int chunkQuality, float heightScale, int noiseSeed)
 {
-    private readonly Dictionary<(int x, int z), Chunk> _chunks = new();
-    private readonly int _chunkSize;
-    private readonly int _chunkQuality;
-    private readonly float _heightScale;
+    private readonly Dictionary<(int x, int z), Chunk> _chunks = [];
+    private readonly int _chunkSize = chunkSize;
+    private readonly int _chunkQuality = chunkQuality;
+    private readonly float _heightScale = heightScale;
 
-
-    public ChunkManager(int chunkSize, int chunkQuality, float heightScale, int noiseSeed)
-    {
-        _chunkSize = chunkSize;
-        _chunkQuality = chunkQuality;
-        _heightScale = heightScale;
-    }
+    private readonly int _seed = noiseSeed;
 
     public void Update(Vector3 cameraPosition, int renderDistance)
     {
@@ -153,7 +145,7 @@ public class ChunkManager
 
         foreach (var key in toRemove)
         {
-            _chunks[key].Dispose();
+            ((IDisposable)_chunks[key]).Dispose();
             _chunks.Remove(key);
         }
 
@@ -164,7 +156,7 @@ public class ChunkManager
             {
                 if (!_chunks.ContainsKey((x, z)))
                 {
-                    _chunks[(x, z)] = new Chunk(x, z, _chunkSize, _chunkQuality, _heightScale);
+                    _chunks[(x, z)] = new Chunk(x, z, _chunkSize, _chunkQuality, _heightScale, _seed);
                 }
 
             }
@@ -191,18 +183,18 @@ public class TerrainMesh : IMeshData
     public int TextureHeight { get; private set; }
     public byte[] TextureRgba { get; private set; }
 
-    private PerlinNoise _erosionNoise;
-
-    private PerlinNoise _continentalnessNoise;
+    private readonly PerlinNoise _noise;
+    private readonly PerlinNoise _erosionNoise;
+    private readonly PerlinNoise _continentalnessNoise;
 
     private const float GlobalMinHeight = 0f;    // Минимально возможная высота в вашем мире
     private const float GlobalMaxHeight = 250f;  // Максимально возможная высота в вашем мире
     private const float GlobalHeightRange = GlobalMaxHeight - GlobalMinHeight;
 
 
-    private PerlinNoise _noise;
+    
 
-    private Vector3[] _positions;
+    private readonly Vector3[] _positions;
     private readonly int _chunkOffsetX;
     private readonly int _chunkOffsetZ;
 
@@ -215,7 +207,8 @@ public class TerrainMesh : IMeshData
         float scaleX, float scaleZ,
         float heightScale,
         int chunkOffsetX = 0,
-        int chunkOffsetZ = 0)
+        int chunkOffsetZ = 0,
+        int seed = 0)
     {
 
         _chunkOffsetX = chunkOffsetX;
@@ -223,7 +216,7 @@ public class TerrainMesh : IMeshData
         _scaleX = scaleX;
         _scaleZ = scaleZ;
 
-        int seed = 0;
+        
 
         _continentalnessNoise = new PerlinNoise(seed + 2);
         _erosionNoise =         new PerlinNoise(seed+1);
@@ -357,10 +350,10 @@ public class TerrainMesh : IMeshData
         var pixels = new byte[width * height * 4];
 
         // ОПРЕДЕЛЯЕМ ЦВЕТА БИОМОВ
-        Vector3 sandColor = new Vector3(0.6f, 0.5f, 0.23f);
-        Vector3 grassColor = new Vector3(0.2f, 0.5f, 0.23f);
-        Vector3 rockColor = new Vector3(0.58f, 0.58f, 0.6f);
-        Vector3 snowColor = new Vector3(0.9f, 0.9f, 0.9f);
+        Vector3 sandColor = new(0.6f, 0.5f, 0.23f);
+        Vector3 grassColor = new(0.2f, 0.5f, 0.23f);
+        Vector3 rockColor = new(0.58f, 0.58f, 0.6f);
+        Vector3 snowColor = new(0.9f, 0.9f, 0.9f);
 
         for (int idx = 0; idx < _positions.Length; idx++)
         { 
