@@ -364,7 +364,7 @@ public class TerrainMesh : IMeshData
 
         for (int idx = 0; idx < _positions.Length; idx++)
         {
-            float normalizedHeight = (_positions[idx].Y - minHeight) / heightRange;
+            float normalizedHeight = (_positions[idx].Y - minHeight) / 100;
             normalizedHeight = Math.Clamp(normalizedHeight, 0f, 1f);
 
             // просто 1 цвет

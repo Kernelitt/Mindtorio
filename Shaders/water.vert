@@ -14,7 +14,6 @@ void main()
 {
     vec3 pos = aPos;
 
-    // Анимация волн
     if (pos.y < uWaterLevel)
     {
         pos.y += sin(pos.x * 0.5 + uTime) * 0.1 + cos(pos.z * 0.3 + uTime) * 0.1;
