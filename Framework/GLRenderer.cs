@@ -10,7 +10,6 @@ namespace Mindtorio.Framework
     public class GLRenderer(GameWindowSettings gameWindowSettings, NativeWindowSettings nativeWindowSettings) : GameWindow(gameWindowSettings, nativeWindowSettings)
     {
         private Shader _shader;
-        private ObjMesh? _objMesh;
 
         private Camera _camera;
 
@@ -24,112 +23,74 @@ namespace Mindtorio.Framework
         private Vector3 _lightDir;
         private Vector3 _lightColor;
         private Vector3 _ambient;
-        private Vector3 _objectColor;
 
         private ChunkManager _chunkManager;
 
         private Matrix4 _lightSpaceMatrix;
-        private int _objVao;
-        private int _objVboPos;
-        private int _objVboNorm;
-        private int _objEbo;
-        private int _objTex;
 
-        private int _fieldOfView = 60, drawDistance = 3000, chunkRenderDistance = 3;
+        private int _fieldOfView = 60, drawDistance = 16000, chunkRenderDistance = 3;
 
         private bool isMouseFixed = true;
 
         private ImGuiController _guiController;
         private int seed = 0;
 
-        private static void CreateMeshVao(IMeshData mesh, out int vao, out int vboPos, out int vboNorm, out int ebo, out int vboTex)
-        {
-            vao = GL.GenVertexArray();
-            GL.BindVertexArray(vao);
+        private OceanMesh _ocean;
+        private Shader _oceanShader;
+        private float _renderTime = 0f;
+        private Vector4 _waterColor = new(0.1f, 0.3f, 0.6f, 0.9f);
 
-            // Позиции (location 0)
-            vboPos = GL.GenBuffer();
-            GL.BindBuffer(BufferTarget.ArrayBuffer, vboPos);
-            GL.BufferData(BufferTarget.ArrayBuffer, mesh.Positions.Length * sizeof(float), mesh.Positions, BufferUsageHint.StaticDraw);
-            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 3 * sizeof(float), 0);
-            GL.EnableVertexAttribArray(0);
+        private GameObject Player;
 
-            // Нормали (location 1)
-            vboNorm = GL.GenBuffer();
-            GL.BindBuffer(BufferTarget.ArrayBuffer, vboNorm);
-            GL.BufferData(BufferTarget.ArrayBuffer, mesh.Normals.Length * sizeof(float), mesh.Normals, BufferUsageHint.StaticDraw);
-            GL.VertexAttribPointer(1, 3, VertexAttribPointerType.Float, false, 3 * sizeof(float), 0);
-            GL.EnableVertexAttribArray(1);
-
-            // UV (location 2) ✅
-            try
-            {
-                vboTex = GL.GenBuffer();
-                GL.BindBuffer(BufferTarget.ArrayBuffer, vboTex);
-                GL.BufferData(BufferTarget.ArrayBuffer, mesh.TexCoords.Length * sizeof(float), mesh.TexCoords, BufferUsageHint.StaticDraw);
-                GL.VertexAttribPointer(2, 2, VertexAttribPointerType.Float, false, 2 * sizeof(float), 0);
-                GL.EnableVertexAttribArray(2);
-            }
-            catch
-            {
-                vboTex = -1;
-            }
-
-            // Индексы
-            ebo = GL.GenBuffer();
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, ebo);
-            GL.BufferData(BufferTarget.ElementArrayBuffer, mesh.Indices.Length * sizeof(uint), mesh.Indices, BufferUsageHint.StaticDraw);
-
-            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-            GL.BindVertexArray(0);
-        }
 
         protected override void OnLoad()
         {
             base.OnLoad();
 
-            GL.ClearColor(0.21f, 0.24f, 0.7f, 1.0f);
+            GL.ClearColor(0.26f, 0.28f, 0.7f, 1.0f);
             GL.Enable(EnableCap.DepthTest);
 
             _shader = new Shader("Shaders/shader.vert", "Shaders/shader.frag");
+            _oceanShader = new Shader("Shaders/ocean.vert", "Shaders/ocean.frag");
+            _ocean = new OceanMesh(width: int.MaxValue, height: int.MaxValue, segments: 64);
+            _ocean.LoadWaterTexture();
 
-            _objMesh = new ObjMesh("Models/metallicTest.obj"); // или любой другой .obj
-            if (_objMesh != null)
-            {
-                CreateMeshVao(_objMesh, out _objVao, out _objVboPos, out _objVboNorm, out _objEbo, out _objTex);
-            }
+
+            _ocean.UpdateWaterLevel(-200f);
+
+            Player = new GameObject("Models/PlayerShip.obj", new Vector3(), new Quaternion(), new Vector3(1.0f,0.2f,0.5f));
 
             _chunkManager = new ChunkManager(
                 chunkSize: 256,
-                chunkQuality: 2048,
+                chunkQuality: 4096,
                 heightScale: 256f,
                 noiseSeed: 0
             );
 
             // Камера
             _camera = new Camera(
-                position: new Vector3(0f, 2f, 5f),
+                position: new Vector3(0f, 200f, 5f),
                 yaw: -90f,
                 pitch: 0f,
-                movementSpeed: 400f,
+                movementSpeed: 1000f,
                 mouseSensitivity: 0.15f
             );
 
 
 
             float aspect = ClientSize.X / (float)ClientSize.Y;
-            float fov = MathHelper.DegreesToRadians(70f);
+            float fov = MathHelper.DegreesToRadians(60f);
             float near = 0.1f;
-            float far = 1000f;
+            float far = 16000f;
             _projection = Matrix4.CreatePerspectiveFieldOfView(fov, aspect, near, far);
 
             // Свет
             _lightDir = new Vector3(1f, 0.4f, 1f); 
             _lightColor = new Vector3(0.9f, 0.9f, 0.9f);
             _ambient = new Vector3(0.2f, 0.2f, 0.2f);
-            _objectColor = new Vector3(1f, 0.5f, 0.2f);
 
             _guiController = new ImGuiController(ClientSize.X, ClientSize.Y);
+
 
             CursorState = CursorState.Hidden;
             MousePosition = new Vector2(ClientSize.X / 2f, ClientSize.Y / 2f);
@@ -175,10 +136,9 @@ namespace Mindtorio.Framework
             base.OnResize(e);
 
             float aspect = ClientSize.X / (float)ClientSize.Y;
-            float fov = MathHelper.DegreesToRadians(70f);
+            float fov = MathHelper.DegreesToRadians(_fieldOfView);
             float near = 0.1f;
-            float far = 5000f;
-            _projection = Matrix4.CreatePerspectiveFieldOfView(fov, aspect, near, far);
+            _projection = Matrix4.CreatePerspectiveFieldOfView(fov, aspect, near, drawDistance);
 
             _guiController.WindowResized(e.Width, e.Height);
         }
@@ -221,6 +181,8 @@ namespace Mindtorio.Framework
             GL.Viewport(0, 0, ClientSize.X, ClientSize.Y);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
+
+
             _shader.Use();
             _shader.SetVector3("uCameraPos", _camera.Position);
             // Привязка shadow map
@@ -240,19 +202,48 @@ namespace Mindtorio.Framework
 
             _chunkManager.Render(_shader, _camera.GetViewMatrix(), _projection);
             _shader.SetInt("uUseTerrainTexture", 0);
-            // Obj 
-            GL.BindVertexArray(_objVao);
-            _shader.SetMatrix4("uModel", Matrix4.Identity);
-            _shader.SetVector3("uObjectColor", _objectColor);
-            _shader.SetFloat("uObjectReflectPower", 3.0f);
-            GL.DrawElements(PrimitiveType.Triangles, _objMesh.Indices.Length, DrawElementsType.UnsignedInt, 0);
+
+
+            Player.Position = _camera.Position - new Vector3(0f, 1f, 0f);
+            Player.Quaternion.Y = MathHelper.DegreesToRadians(-_camera.Yaw - 90);
+            Player.Render(_shader);
+
+
+            // В OnRenderFrame():
+            _renderTime += (float)e.Time;
+
+            _oceanShader.Use();
+
+            _oceanShader.SetMatrix4("uModel", Matrix4.Identity);
+            _oceanShader.SetMatrix4("uView", _camera.GetViewMatrix());
+            _oceanShader.SetMatrix4("uProjection", _projection);
+            _oceanShader.SetFloat("uTime", _renderTime);
+            _oceanShader.SetVector3("uCameraPos", _camera.Position);
+            _oceanShader.SetVector3("uLightDir", _lightDir);
+            _oceanShader.SetVector3("uLightColor", _lightColor);
+            _oceanShader.SetVector3("uAmbient", _ambient);
+            _oceanShader.SetVector4("uWaterColor", _waterColor);
+
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2D, _ocean.OceanTexture);
+            _oceanShader.SetInt("uWaterTexture", 0);
+
+            GL.Enable(EnableCap.Blend);
+            GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+
+            GL.BindVertexArray(_ocean.Vao);
+            GL.DrawElements(PrimitiveType.Triangles, _ocean.IndexCount, DrawElementsType.UnsignedInt, 0);
             GL.BindVertexArray(0);
+
+            GL.Disable(EnableCap.Blend);
+
+            // ИНТЕРФЕЙС ДЛЯ ОТЛАДКИ
 
             // Начинаем сборку интерфейса
             _guiController.Update(this, (float)e.Time);
 
             ImGui.Begin("Debug Menu");
-            ImGui.SetWindowSize(new System.Numerics.Vector2(400f,300f));
+            ImGui.SetWindowSize(new System.Numerics.Vector2(400f,330f));
 
             ImGui.Text("Press Esc to Lock/Release cursor");
 
@@ -260,20 +251,21 @@ namespace Mindtorio.Framework
             ImGui.DragInt("Seed", ref seed);
             if (ImGui.Button("Regenerate World"))
             {
+                _chunkManager.Dispose();
                 _chunkManager = new ChunkManager(
                     chunkSize: 256,
-                    chunkQuality: 1024,
+                    chunkQuality: 4096,
                     heightScale: 256f,
                     noiseSeed: seed
                 );
             }
 
             ImGui.Text("Performance Settings");
-            ImGui.SliderInt("Chunk Gen. Dist.", ref chunkRenderDistance, 1, 6);
+            ImGui.SliderInt("Chunk Gen. Dist.", ref chunkRenderDistance, 1, 12);
 
             ImGui.Text("Display Settings");
             ImGui.SliderInt("Field of view",ref _fieldOfView,30,120);
-            ImGui.SliderInt("Draw Distance", ref drawDistance, 1000, 8000);
+            ImGui.SliderInt("Draw Distance", ref drawDistance, 1000, 500000);
             if (ImGui.Button("Set"))
             {
                 float aspect = ClientSize.X / (float)ClientSize.Y;
@@ -283,6 +275,13 @@ namespace Mindtorio.Framework
             System.Numerics.Vector3 lightDir = (System.Numerics.Vector3)_lightDir;
             ImGui.SliderFloat3("lightDir", ref lightDir, 0.0f,1.0f);
             _lightDir = (Vector3)lightDir;
+
+            ImGui.Text("Ocean Settings");
+            var waterColorVec = new System.Numerics.Vector4(_waterColor.X, _waterColor.Y, _waterColor.Z, _waterColor.W);
+            if (ImGui.ColorEdit4("Water Color", ref waterColorVec))
+            {
+                _waterColor = new Vector4(waterColorVec.X, waterColorVec.Y, waterColorVec.Z, waterColorVec.W);
+            }
 
             ImGui.End();
 

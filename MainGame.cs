@@ -16,8 +16,8 @@ namespace Mindtorio
                 AspectRatio = (16,9),
                 Flags = ContextFlags.ForwardCompatible,
                 Profile = ContextProfile.Core,
-                Vsync = VSyncMode.On
-
+                Vsync = VSyncMode.On,
+                DepthBits = 24
             }
 
             );

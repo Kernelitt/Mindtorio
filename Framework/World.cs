@@ -19,21 +19,39 @@ public class Chunk : IDisposable
 
     private readonly int _seed;
 
+    private bool _isReady;
 
     public Chunk(int chunkX, int chunkZ, int chunkSize, int chunkQuality, float heightScale, int noiseSeed)
     {
         ChunkX = chunkX;
         ChunkZ = chunkZ;
-
         _seed = noiseSeed;
 
-
-        // Генерируем mesh для этого чанка
-        TerrainMesh meshData = new(chunkSize, chunkSize, chunkQuality, chunkQuality, heightScale, chunkX, chunkZ, _seed);
-
-        // Загружаем в OpenGL
-        LoadToGpu(meshData);
+        // Запускаем генерацию в фоне
+        Task.Run(() =>
+        {
+            TerrainMesh meshData = new(chunkSize, chunkSize, chunkQuality, chunkQuality, heightScale, chunkX, chunkZ, _seed);
+            // Сохраняем mesh для загрузки в GPU позже
+            _pendingMesh = meshData;
+            _needsGpuLoad = true;
+        });
     }
+
+    private TerrainMesh _pendingMesh;
+    private bool _needsGpuLoad;
+
+    public void LoadToGpuIfReady()
+    {
+        if (_needsGpuLoad && _pendingMesh != null)
+        {
+            LoadToGpu(_pendingMesh);
+            _pendingMesh = null;
+            _needsGpuLoad = false;
+            _isReady = true;
+        }
+    }
+
+
 
     private void LoadToGpu(TerrainMesh mesh)
     {
@@ -97,6 +115,7 @@ public class Chunk : IDisposable
 
     public void Render(Shader shader, Matrix4 view, Matrix4 projection)
     {
+        if (!_isReady) return; // Не рендерим, пока не готово
         // Биндим текстуру
         GL.ActiveTexture(TextureUnit.Texture0);
         GL.BindTexture(TextureTarget.Texture2D, _textureId);
@@ -118,7 +137,48 @@ public class Chunk : IDisposable
 
     public void Dispose()
     {
-        // Удаляем VAO, VBO, EBO, текстуру
+        // Удаляем VAO
+        if (_vao != 0)
+        {
+            GL.DeleteVertexArray(_vao);
+            _vao = 0;
+        }
+
+        // Удаляем VBO
+        if (_vboPos != 0)
+        {
+            GL.DeleteBuffer(_vboPos);
+            _vboPos = 0;
+        }
+
+        if (_vboNorm != 0)
+        {
+            GL.DeleteBuffer(_vboNorm);
+            _vboNorm = 0;
+        }
+
+        if (_vboTex != 0)
+        {
+            GL.DeleteBuffer(_vboTex);
+            _vboTex = 0;
+        }
+
+        // Удаляем EBO
+        if (_ebo != 0)
+        {
+            GL.DeleteBuffer(_ebo);
+            _ebo = 0;
+        }
+
+        // Удаляем текстуру
+        if (_textureId != 0)
+        {
+            GL.DeleteTexture(_textureId);
+            _textureId = 0;
+        }
+
+        // Очищаем ссылки на mesh (если они ещё есть)
+        _pendingMesh = null;
     }
 }
 
@@ -149,6 +209,10 @@ public class ChunkManager(int chunkSize, int chunkQuality, float heightScale, in
             _chunks.Remove(key);
         }
 
+        foreach (var chunk in _chunks.Values)
+        {
+            chunk.LoadToGpuIfReady();
+        }
         // Создаём новые чанки
         for (int x = currentChunkX - renderDistance; x <= currentChunkX + renderDistance; x++)
         {
@@ -170,6 +234,32 @@ public class ChunkManager(int chunkSize, int chunkQuality, float heightScale, in
             chunk.Render(shader, view, projection);
         }
     }
+    private bool _disposed;
+    public void Dispose()
+    {
+        if (_disposed) return;
+
+        // Dispose всех чанков
+        foreach (var chunk in _chunks.Values)
+        {
+            chunk.Dispose();
+        }
+
+        _chunks.Clear();
+
+        // Если есть кэш мешей — тоже очистить
+        // _meshCache?.Clear();
+
+        _disposed = true;
+
+        GC.SuppressFinalize(this);
+    }
+
+    // Опционально: финализатор на случай если забудут вызвать Dispose
+    ~ChunkManager()
+    {
+        Dispose();
+    }
 }
 
 public class TerrainMesh : IMeshData
@@ -187,21 +277,17 @@ public class TerrainMesh : IMeshData
     private readonly PerlinNoise _erosionNoise;
     private readonly PerlinNoise _continentalnessNoise;
 
-    private const float GlobalMinHeight = 0f;    // Минимально возможная высота в вашем мире
-    private const float GlobalMaxHeight = 250f;  // Максимально возможная высота в вашем мире
+    private const float GlobalMinHeight = 70f;    // Минимально возможная высота в вашем мире
+    private const float GlobalMaxHeight = 650f;  // Максимально возможная высота в вашем мире
     private const float GlobalHeightRange = GlobalMaxHeight - GlobalMinHeight;
 
-
-    
-
-    private readonly Vector3[] _positions;
     private readonly int _chunkOffsetX;
     private readonly int _chunkOffsetZ;
 
     private readonly float _scaleX;
     private readonly float _scaleZ;
 
-
+    private static long _totalMeshMemory = 0;
     public TerrainMesh(
         int width, int depth,
         float scaleX, float scaleZ,
@@ -228,10 +314,10 @@ public class TerrainMesh : IMeshData
 
         int verticesCount = width * depth;
 
-
-        _positions = new Vector3[verticesCount];
-        var normals = new Vector3[verticesCount];
-        var texCoords = new Vector2[verticesCount];
+        // Создаём сразу float[] вместо Vector3[]
+        var positions = new float[verticesCount * 3];
+        var normals = new float[verticesCount * 3];
+        var texCoords = new float[verticesCount * 2];
 
         for (int z = 0; z < depth; z++)
         {
@@ -243,35 +329,46 @@ public class TerrainMesh : IMeshData
                 float worldX = u * scaleX + chunkOffsetX * scaleX;
                 float worldZ = v * scaleZ + chunkOffsetZ * scaleZ;
 
-
                 int idx = z * width + x;
+                int posIdx = idx * 3;
                 float h = GenerateHeight(worldX, worldZ, heightScale);
-                _positions[idx] = new Vector3(worldX, h, worldZ);
-                texCoords[idx] = new Vector2(u, v);
 
+                positions[posIdx + 0] = worldX;
+                positions[posIdx + 1] = h;
+                positions[posIdx + 2] = worldZ;
+
+                texCoords[idx * 2 + 0] = u;
+                texCoords[idx * 2 + 1] = v;
             }
         }
 
-
-        // Нормали
+        // Нормали теперь считают по float[] positions
         for (int z = 0; z < depth; z++)
         {
             for (int x = 0; x < width; x++)
             {
                 int idx = z * width + x;
+                int posIdx = idx * 3;
 
-                float left = GetHeightAt(x - 1, z, width, depth, _positions);
-                float right = GetHeightAt(x + 1, z, width, depth, _positions);
-                float up = GetHeightAt(x, z - 1, width, depth, _positions);
-                float down = GetHeightAt(x, z + 1, width, depth, _positions);
+                float left = GetHeightAtFloat(x - 1, z, width, depth, positions);
+                float right = GetHeightAtFloat(x + 1, z, width, depth, positions);
+                float up = GetHeightAtFloat(x, z - 1, width, depth, positions);
+                float down = GetHeightAtFloat(x, z + 1, width, depth, positions);
 
                 float dx = right - left;
                 float dz = down - up;
 
-                Vector3 normal = Vector3.Normalize(new Vector3(-dx, 2f, -dz));
-                normals[idx] = normal;
+                // Нормализация вручную
+                float len = MathF.Sqrt(dx * dx + 4f + dz * dz);
+                normals[posIdx + 0] = -dx / len;
+                normals[posIdx + 1] = 2f / len;
+                normals[posIdx + 2] = -dz / len;
             }
         }
+
+        Positions = positions;
+        Normals = normals;
+        TexCoords = texCoords;
 
 
         // Индексы
@@ -299,39 +396,52 @@ public class TerrainMesh : IMeshData
         }
 
         // Упаковка
-        Positions = new float[_positions.Length * 3];
-        Normals = new float[normals.Length * 3];
-        TexCoords = new float[texCoords.Length * 2];
-
-        for (int idx = 0; idx < _positions.Length; idx++)
-        {
-            Positions[idx * 3 + 0] = _positions[idx].X;
-            Positions[idx * 3 + 1] = _positions[idx].Y;
-            Positions[idx * 3 + 2] = _positions[idx].Z;
-
-            Normals[idx * 3 + 0] = normals[idx].X;
-            Normals[idx * 3 + 1] = normals[idx].Y;
-            Normals[idx * 3 + 2] = normals[idx].Z;
-
-            TexCoords[idx * 2 + 0] = texCoords[idx].X;
-            TexCoords[idx * 2 + 1] = texCoords[idx].Y;
-        }
-
+        Positions = positions;
+        Normals = normals;
+        TexCoords = texCoords;
         Indices = indices;
-
-
-        // Генерация текстуры на основе тех же высот
         TextureRgba = GenerateTextureFromBiomes();
+    
+    }
+
+    private static float GetHeightAtFloat(int x, int z, int width, int depth, float[] positions)
+    {
+        if (x < 0) x = 0;
+        if (x >= width) x = width - 1;
+        if (z < 0) z = 0;
+        if (z >= depth) z = depth - 1;
+
+        int idx = (z * width + x) * 3;
+        return positions[idx + 1];  // Y координата
     }
 
     private float GenerateHeight(float x, float z, float heightScale)
     {
-        // Базовый шум высоты и эрозии
-        float erosionHeight = MathF.Pow(_erosionNoise.Fractal(x * 0.0007f, z * 0.0007f, 12, 0.52f) * 1.6f, 6);
-        float baseHeight = _noise.Fractal(x * 0.003f, z * 0.003f, 1, 0.42f);
+        float oceanMask = Smoothstep(0.4f,1f,_continentalnessNoise.Fractal(x * 0.00008f, z * 0.00008f, 24, 0.1f));
+
+
+        // Эрозия — для детализации внутри гор
+        float erosionHeight = MathF.Pow(
+            _erosionNoise.Fractal(x * 0.0004f, z * 0.0004f, 12, 0.22f) * 2f,
+            2f
+        );
+
+        erosionHeight = MathF.Pow(erosionHeight,1f -oceanMask);
+        // Базовый шум — средняя частота для деталей гор
+        float baseHeight = _noise.Fractal(
+            x * 0.004f,
+            z * 0.004f,
+            octaves: 8,    // увеличьте с 1 до 4-6 для детализации
+            persistence: 0.5f
+        );
         baseHeight = Math.Clamp(baseHeight, 0f, 1f);
 
-        float landHeight = baseHeight * heightScale * erosionHeight;
+        float mountainHeight = MathF.Sqrt(heightScale * baseHeight) +
+                              MathF.Pow(heightScale * erosionHeight, 1.1f);
+
+        // Применяем океаническую маску и добавляем реки
+        float landHeight =  mountainHeight;
+        landHeight -= MathF.Pow(oceanMask,2f) * heightScale * 30; // Реки углубляются
 
         return landHeight;
     }
@@ -349,15 +459,14 @@ public class TerrainMesh : IMeshData
         int height = TextureHeight;
         var pixels = new byte[width * height * 4];
 
-        // ОПРЕДЕЛЯЕМ ЦВЕТА БИОМОВ
         Vector3 sandColor = new(0.6f, 0.5f, 0.23f);
         Vector3 grassColor = new(0.2f, 0.5f, 0.23f);
         Vector3 rockColor = new(0.58f, 0.58f, 0.6f);
         Vector3 snowColor = new(0.9f, 0.9f, 0.9f);
 
-        for (int idx = 0; idx < _positions.Length; idx++)
+        for (int idx = 1; idx < Positions.Length / 3; idx++)
         { 
-            float normalizedHeight = (_positions[idx].Y - GlobalMinHeight) / GlobalHeightRange;
+            float normalizedHeight = (Positions[idx * 3 + 1] - GlobalMinHeight) / GlobalHeightRange;
             normalizedHeight = Math.Clamp(normalizedHeight, 0f, 1f);
 
             Vector3 color;
@@ -401,18 +510,6 @@ public class TerrainMesh : IMeshData
         }
 
         return pixels;
-    }
-
-
-
-    private static float GetHeightAt(int x, int z, int width, int depth, Vector3[] positions)
-    {
-        if (x < 0) x = 0;
-        if (x >= width) x = width - 1;
-        if (z < 0) z = 0;
-        if (z >= depth) z = depth - 1;
-
-        return positions[z * width + x].Y;
     }
 }
 
