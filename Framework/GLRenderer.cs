@@ -43,6 +43,10 @@ namespace Mindtorio.Framework
 
         private GameObject Player;
 
+        private NetworkManager _networkManager;
+        private string _ipInput = "127.0.0.1"; // Для ImGui буфера
+        private int _portInput = 7777;
+
 
         protected override void OnLoad()
         {
@@ -56,12 +60,15 @@ namespace Mindtorio.Framework
             _ocean = new OceanMesh(width: int.MaxValue, height: int.MaxValue, segments: 64);
             _ocean.LoadWaterTexture();
 
+            _networkManager = new NetworkManager();
 
             _ocean.UpdateWaterLevel(-200f);
 
             Player = new GameObject("Models/PlayerShip.obj", new Vector3(), new Quaternion(),
-                new Vector3(1.0f,0.2f,0.5f), "Textures/Techno/Techno_06-128x128.png");
-            Player.TexScale = (8f, 8f);
+                new Vector3(1.0f, 0.2f, 0.5f), "Textures/Techno/Techno_06-128x128.jpg")
+            {
+                TexScale = (8f, 8f)
+            };
 
             _chunkManager = new ChunkManager(
                 chunkSize: 256,
@@ -174,6 +181,17 @@ namespace Mindtorio.Framework
 
             _chunkManager.Update(_camera.Position, renderDistance: chunkRenderDistance);
 
+            var currentPlayers = _networkManager.GetPlayersSnapshot();
+            foreach (var remotePlayer in currentPlayers)
+            {
+                remotePlayer.Interpolate((float)e.Time);
+            }
+
+            // Отправляем позицию локального игрока в сеть
+            if (_networkManager.IsConnected)
+            {
+                _networkManager.SendPlayerTransform(_camera.Position, _camera.Yaw);
+            }
 
         }
 
@@ -213,6 +231,21 @@ namespace Mindtorio.Framework
             Player.Quaternion.Y = MathHelper.DegreesToRadians(-_camera.Yaw - 90);
             Player.Render(_shader);
 
+            foreach (var remotePlayer in _networkManager.RemotePlayers.Values)
+            {
+                // Временно смещаем объект игрока в координаты сетевого клона
+                Player.Position = remotePlayer.Position - new Vector3(0f, 1f, 0f);
+                Player.Quaternion.Y = MathHelper.DegreesToRadians(-remotePlayer.Yaw - 90);
+
+                // Меняем цвет сетевых игроков, чтобы отличать их от себя (например, на зеленый)
+                Vector3 originalColor = Player.Color;
+                Player.Color = new Vector3(0.2f, 0.8f, 0.2f);
+
+                Player.Render(_shader);
+
+                // Возвращаем цвет обратно
+                Player.Color = originalColor;
+            }
 
             // В OnRenderFrame():
             _renderTime += (float)e.Time;
@@ -295,6 +328,59 @@ namespace Mindtorio.Framework
             {
                 _waterColor = new Vector4(waterColorVec.X, waterColorVec.Y, waterColorVec.Z, waterColorVec.W);
             }
+
+            ImGui.Separator();
+            ImGui.Text("Multiplayer Settings");
+
+            if (!_networkManager.IsConnected && !_networkManager.IsServerRunning)
+            {
+                ImGui.InputText("Server IP", ref _ipInput, 32);
+                ImGui.InputInt("Port", ref _portInput);
+
+                if (ImGui.Button("Host Game (Server + Client)"))
+                {
+                    _networkManager.StartHost((ushort)_portInput);
+                }
+                ImGui.SameLine();
+                if (ImGui.Button("Connect to Server"))
+                {
+                    _networkManager.ConnectToServer(_ipInput, (ushort)_portInput);
+                }
+            }
+            else
+            {
+                if (_networkManager.IsServerRunning)
+                {
+                    ImGui.TextColored(new System.Numerics.Vector4(0f, 1f, 0f, 1f), $"Hosting on port: {_portInput}");
+
+                }
+                else if (_networkManager.IsConnected)
+                {
+                    ImGui.TextColored(new System.Numerics.Vector4(0f, 1f, 0f, 1f), $"Connected to {_ipInput}:{_portInput}");
+                }
+
+                ImGui.Text($"Active Remote Players: {_networkManager.RemotePlayers.Count}");
+
+                if (ImGui.Button("Disconnect / Stop Host"))
+                {
+                    _networkManager.Disconnect();
+                }
+                ImGui.Text("--- Network Players ---");
+                var activePlayers = _networkManager.GetPlayersSnapshot();
+                if (activePlayers.Count == 0)
+                {
+                    ImGui.Text("No remote players in dictionary.");
+                }
+                else
+                {
+                    foreach (var p in activePlayers)
+                    {
+                        ImGui.Text($"Player: Pos({p.Position.X:F1}, {p.Position.Y:F1}, {p.Position.Z:F1}) Yaw: {p.Yaw:F1}");
+                    }
+                }
+
+            }
+            ImGui.Separator();
 
             ImGui.End();
 
