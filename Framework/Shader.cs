@@ -35,7 +35,7 @@ namespace Mindtorio.Framework
             GL.DeleteShader(fragShader);
         }
 
-        private void CheckShaderCompile(int shader, string type)
+        private static void CheckShaderCompile(int shader, string type)
         {
             GL.GetShader(shader, ShaderParameter.CompileStatus, out int status);
             if (status == 0)
@@ -45,7 +45,7 @@ namespace Mindtorio.Framework
             }
         }
 
-        private void CheckProgramLink(int program)
+        private static void CheckProgramLink(int program)
         {
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int status);
             if (status == 0)

@@ -22,7 +22,7 @@ public class Chunk : IDisposable
 
     private bool _isReady;
 
-    private List<GameObject> _trees = new();
+    private readonly List<GameObject> _trees = [];
     private bool _treesCreated;
 
     public Chunk(int chunkX, int chunkZ, int chunkSize, int chunkQuality, float heightScale, int noiseSeed)
@@ -44,7 +44,7 @@ public class Chunk : IDisposable
         if (_needsGpuLoad && _pendingMesh != null)
         {
             LoadToGpu(_pendingMesh);
-
+            CreateTreesFromPoints(_pendingMesh.TreeSpawnPoints);
 
             _pendingMesh = null;
             _needsGpuLoad = false;
@@ -52,7 +52,7 @@ public class Chunk : IDisposable
         }
     }
 
-    private TerrainMesh _pendingMesh;
+    private TerrainMesh? _pendingMesh;
     private bool _needsGpuLoad;
 
 
@@ -60,31 +60,32 @@ public class Chunk : IDisposable
     {
         if (_treesCreated || spawnPoints == null) return;
 
+        // Общие ресурсы уже загружены в ResourceManager, создаём только GameObject
         foreach (var point in spawnPoints)
         {
-            // Ствол
+            // Ствол — использует общий VAO/VBO/EBO из кэша
             var trunk = new GameObject(
                 "Models/trunk.obj",
                 point,
                 Quaternion.Identity,
-                new Vector3(0.4f, 0.25f, 0.1f),
-                "Textures/Techno/Techno_06-128x128.jpg"
+                new Vector3(0.4f, 0.25f, 0.1f)
+
             )
             {
-                TexScale = new Vector2(1f, 2f)
+                TexScale = new Vector2(32f, 32f)
             };
             _trees.Add(trunk);
 
-            // Листва
+            // Листва — ТОТ ЖЕ VAO/VBO/EBO, просто другие transform/color
             var leaves = new GameObject(
                 "Models/leaves.obj",
                 point + new Vector3(0, 1.5f, 0),
                 Quaternion.Identity,
                 new Vector3(0.2f, 0.6f, 0.2f),
-                "Textures/Techno/Techno_06-128x128.jpg"
+                "Textures/Grainy/Grainy_01-128x128.png"
             )
             {
-                TexScale = new Vector2(2f, 1f)
+                TexScale = new Vector2(6f, 6f)
             };
             _trees.Add(leaves);
         }
@@ -162,7 +163,10 @@ public class Chunk : IDisposable
         GL.ActiveTexture(TextureUnit.Texture0);
         GL.BindTexture(TextureTarget.Texture2D, _textureId);
         GL.BindVertexArray(_vao);
-
+        shader.SetVector2("uTexScale", Vector2.One);
+        shader.SetVector2("uTexOffset", Vector2.Zero);
+        shader.SetVector3("uObjectColor", Vector3.One);
+        shader.SetFloat("uObjectReflectPower", 0.1f);
         shader.SetMatrix4("uModel", Matrix4.Identity);
         shader.SetMatrix4("uView", view);
         shader.SetMatrix4("uProjection", projection);
@@ -323,7 +327,7 @@ public class TerrainMesh : IMeshData
     private readonly PerlinNoise _erosionNoise;
     private readonly PerlinNoise _continentalnessNoise;
 
-    private int _seed;
+    private readonly int _seed;
 
     private const float GlobalMinHeight = 70f;    // Минимально возможная высота в вашем мире
     private const float GlobalMaxHeight = 650f;  // Максимально возможная высота в вашем мире
@@ -335,7 +339,6 @@ public class TerrainMesh : IMeshData
     private readonly float _scaleX;
     private readonly float _scaleZ;
 
-    private static long _totalMeshMemory = 0;
     public TerrainMesh(
         int width, int depth,
         float scaleX, float scaleZ,
@@ -448,21 +451,20 @@ public class TerrainMesh : IMeshData
         Normals = normals;
         TexCoords = texCoords;
         Indices = indices;
-
+        TreeSpawnPoints = GenerateTreeSpawnPoints();
         TextureRgba = GenerateTextureFromBiomes();
     
     }
 
-    private List<Vector3> GenerateTreeSpawnPoints(float treeDensity = 0.015f, int maxTrees = 25)
+    private List<Vector3> GenerateTreeSpawnPoints(float treeDensity = 0.015f, int maxTrees = 250)
     {
         var spawnPoints = new List<Vector3>();
         int totalVertices = Positions.Length / 3;
         int targetTreeCount = Math.Min((int)(totalVertices * treeDensity), maxTrees);
 
-        // Используем детерминированный random на основе seed чанка
-        var random = new Random(_seed + _chunkOffsetX * 1000 + _chunkOffsetZ);
+        // Используем шум вместо Random
+        var forestNoise = new PerlinNoise(_seed + 999); // Отдельный seed для лесов
 
-        // Проходим только по вершинам в зоне травы (0.10 - 0.55)
         for (int idx = 0; idx < totalVertices; idx++)
         {
             if (spawnPoints.Count >= targetTreeCount)
@@ -471,17 +473,18 @@ public class TerrainMesh : IMeshData
             float y = Positions[idx * 3 + 1];
             float normalizedHeight = (y - GlobalMinHeight) / GlobalHeightRange;
 
-            // Быстрая проверка диапазона травы
             if (normalizedHeight >= 0.10f && normalizedHeight <= 0.55f)
             {
-                // Случайный выбор с нужной плотностью
-                if (random.NextDouble() < treeDensity * 20)
+                float worldX = Positions[idx * 3 + 0];
+                float worldZ = Positions[idx * 3 + 2];
+
+                // Шум для определения "леса" vs "открытой местности"
+                float forestValue = forestNoise.Fractal(worldX * 0.001f, worldZ * 0.001f, octaves: 2, persistence: 0.5f);
+
+                // Если шум > порога — здесь будет лес
+                if (forestValue > 0.5f)
                 {
-                    spawnPoints.Add(new Vector3(
-                        Positions[idx * 3 + 0],
-                        y,
-                        Positions[idx * 3 + 2]
-                    ));
+                    spawnPoints.Add(new Vector3(worldX, y, worldZ));
                 }
             }
         }
