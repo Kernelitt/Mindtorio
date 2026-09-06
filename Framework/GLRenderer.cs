@@ -321,6 +321,11 @@ namespace Mindtorio.Framework
             ImGui.ColorEdit3("Player Color", ref playerColor);
             Player.Color = (Vector3)playerColor;
 
+            float speed = _camera.MovementSpeed;
+            ImGui.SliderFloat("Camera Speed", ref speed, 10, 1000);
+            _camera.MovementSpeed = speed;
+
+            ImGui.Text("Player Pos:"+ Player.Position.ToString());
             // Ocean
             ImGui.Text("Ocean Settings");
             var waterColorVec = new System.Numerics.Vector4(_waterColor.X, _waterColor.Y, _waterColor.Z, _waterColor.W);
