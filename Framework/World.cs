@@ -1,5 +1,6 @@
-﻿using OpenTK.Mathematics;
-using OpenTK.Graphics.OpenGL4;
+﻿using OpenTK.Graphics.OpenGL4;
+using OpenTK.Mathematics;
+using System.Runtime.Intrinsics.X86;
 
 namespace Mindtorio.Framework;
 
@@ -21,36 +22,75 @@ public class Chunk : IDisposable
 
     private bool _isReady;
 
+    private List<GameObject> _trees = new();
+    private bool _treesCreated;
+
     public Chunk(int chunkX, int chunkZ, int chunkSize, int chunkQuality, float heightScale, int noiseSeed)
     {
         ChunkX = chunkX;
         ChunkZ = chunkZ;
         _seed = noiseSeed;
 
-        // Запускаем генерацию в фоне
         Task.Run(() =>
         {
             TerrainMesh meshData = new(chunkSize, chunkSize, chunkQuality, chunkQuality, heightScale, chunkX, chunkZ, _seed);
-            // Сохраняем mesh для загрузки в GPU позже
             _pendingMesh = meshData;
             _needsGpuLoad = true;
         });
     }
-
-    private TerrainMesh _pendingMesh;
-    private bool _needsGpuLoad;
 
     public void LoadToGpuIfReady()
     {
         if (_needsGpuLoad && _pendingMesh != null)
         {
             LoadToGpu(_pendingMesh);
+
+
             _pendingMesh = null;
             _needsGpuLoad = false;
             _isReady = true;
         }
     }
 
+    private TerrainMesh _pendingMesh;
+    private bool _needsGpuLoad;
+
+
+    private void CreateTreesFromPoints(List<Vector3> spawnPoints)
+    {
+        if (_treesCreated || spawnPoints == null) return;
+
+        foreach (var point in spawnPoints)
+        {
+            // Ствол
+            var trunk = new GameObject(
+                "Models/trunk.obj",
+                point,
+                Quaternion.Identity,
+                new Vector3(0.4f, 0.25f, 0.1f),
+                "Textures/Techno/Techno_06-128x128.jpg"
+            )
+            {
+                TexScale = new Vector2(1f, 2f)
+            };
+            _trees.Add(trunk);
+
+            // Листва
+            var leaves = new GameObject(
+                "Models/leaves.obj",
+                point + new Vector3(0, 1.5f, 0),
+                Quaternion.Identity,
+                new Vector3(0.2f, 0.6f, 0.2f),
+                "Textures/Techno/Techno_06-128x128.jpg"
+            )
+            {
+                TexScale = new Vector2(2f, 1f)
+            };
+            _trees.Add(leaves);
+        }
+
+        _treesCreated = true;
+    }
 
 
     private void LoadToGpu(TerrainMesh mesh)
@@ -115,23 +155,28 @@ public class Chunk : IDisposable
 
     public void Render(Shader shader, Matrix4 view, Matrix4 projection)
     {
-        if (!_isReady) return; // Не рендерим, пока не готово
-        // Биндим текстуру
+        if (!_isReady) return;
+
+        // Рендерим ландшафт
+        shader.Use();
         GL.ActiveTexture(TextureUnit.Texture0);
         GL.BindTexture(TextureTarget.Texture2D, _textureId);
-
-        // Биндим VAO
         GL.BindVertexArray(_vao);
 
-        // Устанавливаем uniform'ы
-        shader.SetMatrix4("uModel", Matrix4.Identity); // или смещение чанка
+        shader.SetMatrix4("uModel", Matrix4.Identity);
         shader.SetMatrix4("uView", view);
         shader.SetMatrix4("uProjection", projection);
 
         GL.DrawElements(PrimitiveType.Triangles, _indexCount, DrawElementsType.UnsignedInt, 0);
 
-        // Отбіндиваем
         GL.BindVertexArray(0);
+        GL.BindTexture(TextureTarget.Texture2D, 0);
+
+        // Рендерим деревья
+        foreach (var tree in _trees)
+        {
+            tree.Render(shader);
+        }
 
     }
 
@@ -193,7 +238,6 @@ public class ChunkManager(int chunkSize, int chunkQuality, float heightScale, in
 
     public void Update(Vector3 cameraPosition, int renderDistance)
     {
-        // Вычисляем, какие чанки нужны
         int currentChunkX = (int)Math.Floor(cameraPosition.X / _chunkQuality);
         int currentChunkZ = (int)Math.Floor(cameraPosition.Z / _chunkQuality);
 
@@ -209,10 +253,6 @@ public class ChunkManager(int chunkSize, int chunkQuality, float heightScale, in
             _chunks.Remove(key);
         }
 
-        foreach (var chunk in _chunks.Values)
-        {
-            chunk.LoadToGpuIfReady();
-        }
         // Создаём новые чанки
         for (int x = currentChunkX - renderDistance; x <= currentChunkX + renderDistance; x++)
         {
@@ -222,8 +262,13 @@ public class ChunkManager(int chunkSize, int chunkQuality, float heightScale, in
                 {
                     _chunks[(x, z)] = new Chunk(x, z, _chunkSize, _chunkQuality, _heightScale, _seed);
                 }
-
             }
+        }
+
+        // Загружаем в GPU только чанки, которые готовы (один раз!)
+        foreach (var chunk in _chunks.Values)
+        {
+            chunk.LoadToGpuIfReady();
         }
     }
 
@@ -272,10 +317,13 @@ public class TerrainMesh : IMeshData
     public int TextureWidth { get; private set; }
     public int TextureHeight { get; private set; }
     public byte[] TextureRgba { get; private set; }
+    public List<Vector3> TreeSpawnPoints { get; private set; }
 
     private readonly PerlinNoise _noise;
     private readonly PerlinNoise _erosionNoise;
     private readonly PerlinNoise _continentalnessNoise;
+
+    private int _seed;
 
     private const float GlobalMinHeight = 70f;    // Минимально возможная высота в вашем мире
     private const float GlobalMaxHeight = 650f;  // Максимально возможная высота в вашем мире
@@ -307,7 +355,7 @@ public class TerrainMesh : IMeshData
         _continentalnessNoise = new PerlinNoise(seed + 2);
         _erosionNoise =         new PerlinNoise(seed+1);
         _noise =                new PerlinNoise(seed);
-
+        _seed = seed;
 
         TextureWidth = width;
         TextureHeight = depth;
@@ -400,8 +448,45 @@ public class TerrainMesh : IMeshData
         Normals = normals;
         TexCoords = texCoords;
         Indices = indices;
+
         TextureRgba = GenerateTextureFromBiomes();
     
+    }
+
+    private List<Vector3> GenerateTreeSpawnPoints(float treeDensity = 0.015f, int maxTrees = 25)
+    {
+        var spawnPoints = new List<Vector3>();
+        int totalVertices = Positions.Length / 3;
+        int targetTreeCount = Math.Min((int)(totalVertices * treeDensity), maxTrees);
+
+        // Используем детерминированный random на основе seed чанка
+        var random = new Random(_seed + _chunkOffsetX * 1000 + _chunkOffsetZ);
+
+        // Проходим только по вершинам в зоне травы (0.10 - 0.55)
+        for (int idx = 0; idx < totalVertices; idx++)
+        {
+            if (spawnPoints.Count >= targetTreeCount)
+                break;
+
+            float y = Positions[idx * 3 + 1];
+            float normalizedHeight = (y - GlobalMinHeight) / GlobalHeightRange;
+
+            // Быстрая проверка диапазона травы
+            if (normalizedHeight >= 0.10f && normalizedHeight <= 0.55f)
+            {
+                // Случайный выбор с нужной плотностью
+                if (random.NextDouble() < treeDensity * 20)
+                {
+                    spawnPoints.Add(new Vector3(
+                        Positions[idx * 3 + 0],
+                        y,
+                        Positions[idx * 3 + 2]
+                    ));
+                }
+            }
+        }
+
+        return spawnPoints;
     }
 
     private static float GetHeightAtFloat(int x, int z, int width, int depth, float[] positions)
@@ -417,14 +502,15 @@ public class TerrainMesh : IMeshData
 
     private float GenerateHeight(float x, float z, float heightScale)
     {
-        float oceanMask = Smoothstep(0.4f,1f,_continentalnessNoise.Fractal(x * 0.00008f, z * 0.00008f, 24, 0.1f));
+        float oceanMask = Smoothstep(0.4f,1f,_continentalnessNoise.Fractal(x * 0.0002f, z * 0.0002f, 24, 0.1f));
 
 
         // Эрозия — для детализации внутри гор
         float erosionHeight = MathF.Pow(
-            _erosionNoise.Fractal(x * 0.0004f, z * 0.0004f, 12, 0.22f) * 2f,
-            2f
+            _erosionNoise.Fractal(x * 0.0006f, z * 0.0006f, 12, 0.22f) * 1.7f,
+            4f
         );
+
 
         erosionHeight = MathF.Pow(erosionHeight,1f -oceanMask);
         // Базовый шум — средняя частота для деталей гор
@@ -440,7 +526,7 @@ public class TerrainMesh : IMeshData
                               MathF.Pow(heightScale * erosionHeight, 1.1f);
 
         // Применяем океаническую маску и добавляем реки
-        float landHeight =  mountainHeight;
+        float landHeight =  mountainHeight + 300f;
         landHeight -= MathF.Pow(oceanMask,2f) * heightScale * 30; // Реки углубляются
 
         return landHeight;
@@ -476,27 +562,27 @@ public class TerrainMesh : IMeshData
             {
                 color = sandColor;
             }
-            else if (normalizedHeight < 0.15f) // Песок -> Трава
+            else if (normalizedHeight < 0.10f) // Песок -> Трава
             {
-                float t = Smoothstep(0.05f, 0.15f, normalizedHeight);
+                float t = Smoothstep(0.05f, 0.10f, normalizedHeight);
                 color = Vector3.Lerp(sandColor, grassColor, t);
             }
             else if (normalizedHeight < 0.55f)
             {
                 color = grassColor;
             }
-            else if (normalizedHeight < 0.65f) // Трава -> Скалы
+            else if (normalizedHeight < 0.85f) // Трава -> Скалы
             {
-                float t = Smoothstep(0.55f, 0.65f, normalizedHeight);
+                float t = Smoothstep(0.55f, 0.85f, normalizedHeight);
                 color = Vector3.Lerp(grassColor, rockColor, t);
             }
-            else if (normalizedHeight < 0.85f)
+            else if (normalizedHeight < 0.95f)
             {
                 color = rockColor;
             }
             else // Скалы -> Снег
             {
-                float t = Smoothstep(0.85f, 0.95f, normalizedHeight);
+                float t = Smoothstep(0.95f, 0.99f, normalizedHeight);
                 color = Vector3.Lerp(rockColor, snowColor, t);
             }
 

@@ -224,18 +224,18 @@ namespace Mindtorio.Framework
             _shader.SetVector2("uTexScale", Vector2.One);
             _shader.SetVector2("uTexOffset", Vector2.Zero);
             _chunkManager.Render(_shader, _camera.GetViewMatrix(), _projection);
-            _shader.SetInt("uUseTerrainTexture", 0);
+            _shader.SetInt("uUseTexture", 0);
 
 
             Player.Position = _camera.Position - new Vector3(0f, 1f, 0f);
-            Player.Quaternion.Y = MathHelper.DegreesToRadians(-_camera.Yaw - 90);
+            Player.Quaternion.Y = MathHelper.DegreesToRadians(-_camera.Yaw);
             Player.Render(_shader);
 
             foreach (var remotePlayer in _networkManager.RemotePlayers.Values)
             {
                 // Временно смещаем объект игрока в координаты сетевого клона
                 Player.Position = remotePlayer.Position - new Vector3(0f, 1f, 0f);
-                Player.Quaternion.Y = MathHelper.DegreesToRadians(-remotePlayer.Yaw - 90);
+                Player.Quaternion.Y = MathHelper.DegreesToRadians(-remotePlayer.Yaw);
 
                 // Меняем цвет сетевых игроков, чтобы отличать их от себя (например, на зеленый)
                 Vector3 originalColor = Player.Color;

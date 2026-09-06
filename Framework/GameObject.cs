@@ -33,7 +33,6 @@ internal class GameObject
     private static int LoadTexture(string path)
     {
         int tex = GL.GenTexture();
-        Console.WriteLine(tex);
         GL.BindTexture(TextureTarget.Texture2D, tex);
 
         using var bmp = new Bitmap(path);
@@ -105,8 +104,6 @@ internal class GameObject
 
         GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
         GL.BindVertexArray(0);
-
-        Console.WriteLine(mesh.TexCoords.Length);
     }
 
     public void Render(Shader _shader)
