@@ -1,9 +1,10 @@
-﻿using OpenTK.Graphics.OpenGL4;
+﻿using ImGuiNET;
+using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
-using ImGuiNET;
+using System.Drawing;
 
 namespace Mindtorio.Framework
 {
@@ -58,7 +59,9 @@ namespace Mindtorio.Framework
 
             _ocean.UpdateWaterLevel(-200f);
 
-            Player = new GameObject("Models/PlayerShip.obj", new Vector3(), new Quaternion(), new Vector3(1.0f,0.2f,0.5f));
+            Player = new GameObject("Models/PlayerShip.obj", new Vector3(), new Quaternion(),
+                new Vector3(1.0f,0.2f,0.5f), "Textures/Techno/Techno_06-128x128.png");
+            Player.TexScale = (8f, 8f);
 
             _chunkManager = new ChunkManager(
                 chunkSize: 256,
@@ -184,14 +187,15 @@ namespace Mindtorio.Framework
 
 
             _shader.Use();
+            _shader.SetVector3("uObjectColor", Vector3.One);
             _shader.SetVector3("uCameraPos", _camera.Position);
             // Привязка shadow map
             GL.ActiveTexture(TextureUnit.Texture0);
             _shader.SetMatrix4("uLightSpace", _lightSpaceMatrix);
 
             _shader.SetFloat("uObjectReflectPower", 0.25f); 
-            _shader.SetInt("uTerrainTexture", 0); 
-            _shader.SetInt("uUseTerrainTexture", 1); 
+            _shader.SetInt("uTexture", 0); 
+            _shader.SetInt("uUseTexture", 1); 
 
             _shader.SetMatrix4("uView", _camera.GetViewMatrix());
             _shader.SetMatrix4("uProjection", _projection);
@@ -199,7 +203,8 @@ namespace Mindtorio.Framework
             _shader.SetVector3("uLightDir", _lightDir);
             _shader.SetVector3("uLightColor", _lightColor);
             _shader.SetVector3("uAmbient", _ambient);
-
+            _shader.SetVector2("uTexScale", Vector2.One);
+            _shader.SetVector2("uTexOffset", Vector2.Zero);
             _chunkManager.Render(_shader, _camera.GetViewMatrix(), _projection);
             _shader.SetInt("uUseTerrainTexture", 0);
 
@@ -213,7 +218,7 @@ namespace Mindtorio.Framework
             _renderTime += (float)e.Time;
 
             _oceanShader.Use();
-
+            _shader.SetVector3("uObjectColor", Vector3.One);
             _oceanShader.SetMatrix4("uModel", Matrix4.Identity);
             _oceanShader.SetMatrix4("uView", _camera.GetViewMatrix());
             _oceanShader.SetMatrix4("uProjection", _projection);
@@ -272,10 +277,18 @@ namespace Mindtorio.Framework
                 float fov = MathHelper.DegreesToRadians(_fieldOfView);
                 _projection = Matrix4.CreatePerspectiveFieldOfView(fov, aspect, 0.1f, drawDistance);
             }
+
+            //Light Direction
             System.Numerics.Vector3 lightDir = (System.Numerics.Vector3)_lightDir;
             ImGui.SliderFloat3("lightDir", ref lightDir, 0.0f,1.0f);
             _lightDir = (Vector3)lightDir;
 
+            //Player
+            System.Numerics.Vector3 playerColor = (System.Numerics.Vector3)Player.Color;
+            ImGui.ColorEdit3("Player Color", ref playerColor);
+            Player.Color = (Vector3)playerColor;
+
+            // Ocean
             ImGui.Text("Ocean Settings");
             var waterColorVec = new System.Numerics.Vector4(_waterColor.X, _waterColor.Y, _waterColor.Z, _waterColor.W);
             if (ImGui.ColorEdit4("Water Color", ref waterColorVec))

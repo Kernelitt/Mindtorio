@@ -6,8 +6,8 @@ in vec2 TexCoord;
 
 out vec4 FragColor;
 
-uniform sampler2D uTerrainTexture;
-uniform int uUseTerrainTexture; 
+uniform sampler2D uTexture;
+uniform int uUseTexture; 
 
 uniform vec3 uCameraPos;
 uniform vec3 uLightDir;
@@ -15,7 +15,8 @@ uniform vec3 uLightColor;
 uniform vec3 uAmbient;
 uniform vec3 uObjectColor;
 uniform float uObjectReflectPower;
-
+uniform vec2 uTexScale;
+uniform vec2 uTexOffset;
 
 void main()
 {
@@ -27,9 +28,9 @@ void main()
     vec3 ambient = uAmbient * uLightColor;
 
     vec3 baseColor;
-    if (uUseTerrainTexture == 1)
+    if (uUseTexture == 1)
     {
-        baseColor = texture(uTerrainTexture, TexCoord).rgb;
+        baseColor = texture(uTexture, TexCoord * uTexScale + uTexOffset).rgb * uObjectColor;
     }
     else
     {

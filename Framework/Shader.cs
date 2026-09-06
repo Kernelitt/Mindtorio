@@ -67,6 +67,13 @@ namespace Mindtorio.Framework
             GL.UniformMatrix4(loc, false, ref value);
         }
 
+        public void SetVector2(string name, Vector2 value)
+        {
+            int loc = GL.GetUniformLocation(Handle, name);
+            if (loc == -1) return;
+            GL.Uniform2(loc, value);
+        }
+
         public void SetVector3(string name, Vector3 value)
         {
             int loc = GL.GetUniformLocation(Handle, name);

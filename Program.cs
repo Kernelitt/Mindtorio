@@ -18,7 +18,7 @@ internal class Program
     #endif
 
     #if !DEBUG
-        ShowWindow(GetConsoleWindow(), 0);  // Скрыть консоль
+        ShowWindow(GetConsoleWindow(), 1);  // Скрыть консоль
     #endif
 
         MainGame game = new();
